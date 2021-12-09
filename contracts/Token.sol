@@ -89,7 +89,7 @@ contract Token{
       haveAllow(_from,_value)
       returns (bool answer)
     {
-            allowed[_from][msg.sender] = allowed[_from][msg.sender] - _value;
+            allowed[_from][msg.sender] -= _value;
             changeBalance(_from, _to, _value);
             
             emit Transfer(_from, _to, _value);
@@ -126,7 +126,7 @@ contract Token{
       address _owner,
       address _spender
     ) 
-      public
+      external
       view 
       returns(uint256 allow)
     {
@@ -135,13 +135,13 @@ contract Token{
 
     /// @notice Return total supply of tokens  
     /// @return totSupply type uint256
-    function totalSupply() public view returns (uint256 totSupply ){
+    function totalSupply() external view returns (uint256 totSupply ){
         return totalSupply_;
     }
 
     /// @notice Return balance of address   
     /// @return balance type uint256
-    function balanceOf(address _owner) public view returns(uint256 balance){
+    function balanceOf(address _owner) external view returns(uint256 balance){
         return balances[_owner];
     }
 

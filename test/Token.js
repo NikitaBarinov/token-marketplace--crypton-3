@@ -47,7 +47,7 @@ describe('Token contract', () => {
             )
             .to
             .be
-            .revertedWith("Ownable: new owner is the zero address");
+            .revertedWith("Address is zero address");
         });
 
         it("Should emit OwnershipTransferred event", async () => {
