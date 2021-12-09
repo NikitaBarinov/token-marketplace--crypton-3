@@ -25,35 +25,35 @@ describe('Token contract', () => {
 
     describe('Transactions', () => {
         it('Should transfer ownership from owner to addr1', async () => {
-            await token.connect(owner).transferOwnership(addr1.address); 
+            await token.connect(owner).transferOwnership(addr1.address);
             expect(await token.owner()).to.equal(addr1.address);
         });
 
         it('Should fail if msg.sender not owner', async () => {
-            await 
-            expect(token
-                .connect(addr2)
-                .transferOwnership(addr1.address))
-            .to
-            .be
-            .revertedWith("Ownable: caller is not owner");
+            await
+                expect(token
+                    .connect(addr2)
+                    .transferOwnership(addr1.address))
+                    .to
+                    .be
+                    .revertedWith("Ownable: caller is not owner");
         });
 
         it('Should fail if newOwner have zero address', async () => {
-            await 
-            expect(token
-                .connect(owner)
-                .transferOwnership("0x0000000000000000000000000000000000000000")
-            )
-            .to
-            .be
-            .revertedWith("Address is zero address");
+            await
+                expect(token
+                    .connect(owner)
+                    .transferOwnership("0x0000000000000000000000000000000000000000")
+                )
+                    .to
+                    .be
+                    .revertedWith("Address is zero address");
         });
 
         it("Should emit OwnershipTransferred event", async () => {
             await expect(token.connect(owner).transferOwnership(addr1.address))
-              .to.emit(token, "OwnershipTransferred")
-              .withArgs(owner.address, addr1.address);
+                .to.emit(token, "OwnershipTransferred")
+                .withArgs(owner.address, addr1.address);
         });
 
         it('Should transfer tokens to addr1', async () => {
@@ -69,8 +69,8 @@ describe('Token contract', () => {
 
         it("Should emit Transfer event", async () => {
             await expect(token.connect(owner).transfer(addr1.address, 1))
-              .to.emit(token, "Transfer")
-              .withArgs(owner.address, addr1.address, 1);
+                .to.emit(token, "Transfer")
+                .withArgs(owner.address, addr1.address, 1);
         });
 
         it('Should fail if senders balance is too low', async () => {
@@ -98,8 +98,8 @@ describe('Token contract', () => {
 
         it("Should emit Approval event", async () => {
             await expect(token.connect(owner).approve(addr1.address, 10))
-              .to.emit(token, "Approval")
-              .withArgs(owner.address, addr1.address, 10);
+                .to.emit(token, "Approval")
+                .withArgs(owner.address, addr1.address, 10);
         });
 
         it('Should transfer 5 tokens from addr1 to addr2', async () => {
@@ -128,7 +128,6 @@ describe('Token contract', () => {
             expect(ownerBalance).to.equal("995");
             expect(addr2Balance).to.equal("5");
             expect(addr1Allowance).to.equal("5");
-
         });
 
         it('Should fail if sender allowance is too low', async () => {
@@ -166,6 +165,71 @@ describe('Token contract', () => {
                 );
 
             expect(addr1Balance).to.equal("0");
+        });
+
+        it('Should minted 5 tokens to addr1', async () => {
+            await token.connect(owner)
+                .mint(
+                    addr1.address,
+                    5
+                );
+            const finalAddr1Balance = await token.balanceOf(addr1.address);
+            const finalTotalSupply = await token.totalSupply();
+            expect(finalAddr1Balance).to.equal("5");
+            expect(finalTotalSupply).to.equal("1005");
+        });
+
+        it('Should fail not owner can mint tokens', async () => {
+            await expect(token.connect(addr1).mint(
+                addr2.address,
+                5
+            ))
+                .to
+                .be
+                .revertedWith("Ownable: caller is not owner");
+            const finalAddr2Balance = await token.balanceOf(addr2.address);
+            expect(finalAddr2Balance).to.equal("0");
+        });
+
+        it('Should burned 5 tokens of addr1', async () => {
+            await token.connect(owner).transfer(addr1.address, 5);
+
+            await token.connect(owner)
+                .burn(
+                    addr1.address,
+                    5
+                );
+            const finalAddr1Balance = await token.balanceOf(addr1.address);
+            const finalTotalSupply = await token.totalSupply();
+            expect(finalAddr1Balance).to.equal("0");
+            expect(finalTotalSupply).to.equal("995");
+        });
+
+        it('Should fail if not owner can burn tokens', async () => {
+            await token.connect(owner).transfer(addr2.address, 5);
+            await expect(token.connect(addr1)
+                .burn(
+                    addr2.address,
+                    5
+                ))
+                .to
+                .be
+                .revertedWith("Ownable: caller is not owner");
+            const finalAddr2Balance = await token.balanceOf(addr2.address);
+            expect(finalAddr2Balance).to.equal("5");
+        });
+
+        it('Should fail if can burn not exist tokens', async () => {
+            await expect(token.connect(addr1)
+                .burn(
+                    addr2.address,
+                    5
+                ))
+                .to
+                .be
+                .revertedWith("Insufficient funds");
+            const finalAddr2Balance = await token.balanceOf(addr2.address);
+            expect(finalAddr2Balance).to.equal("0");
         });
     });
 });
