@@ -24,9 +24,18 @@ contract Token{
         balances[owner] = totalSupply_;
     }
 
-    function transferOwnership(address newOwner) public returns(bool answer) {
+    modifier notZeroAddr(address testAddr){
+       require(testAddr != address(0),"Address is zero address");
+      _;
+    }
+
+    modifier costs(address addrOf,uint256 value){
+      require(balances[addrOf] >= value,"Insufficient funds");
+      _;
+    }
+
+    function transferOwnership(address newOwner) public notZeroAddr(newOwner) returns(bool answer) {
       require(owner == msg.sender,"Ownable: caller is not owner");
-      require(newOwner != address(0),"Ownable: new owner is the zero address");
      
       address oldOwner = owner;
       owner = newOwner;
@@ -46,17 +55,14 @@ contract Token{
       uint256 _value
     ) 
     public
+    costs(msg.sender,_value)
+    notZeroAddr(_to)
     returns (bool answer)
     {
-        require(balances[msg.sender] >= _value,"Insufficient funds");
-            address _from = msg.sender;
-            
-            balances[_from] = balances[_from] - _value;
-            balances[_to] = balances[_to] + _value;
-            
-            emit Transfer(_from, _to, _value);
-          
-            return true;
+      address _from = msg.sender;
+      changeBalance(_from, _to, _value);
+      emit Transfer(_from, _to, _value);
+      return true;
     }
 
     /// @notice Transfer selected quantity of tokens between two addresses  
@@ -72,18 +78,24 @@ contract Token{
       uint _value
     ) 
       public
+      notZeroAddr(_from)
+      notZeroAddr(_to)
+      costs(_from,_value)
       returns (bool answer)
     {
-            require(_value <= balances[_from],"Insufficient funds");
             require(_value <= allowed[_from][msg.sender],"Insufficient Confirmed Funds");
             
-            balances[_from] = balances[_from] - _value;
             allowed[_from][msg.sender] = allowed[_from][msg.sender] - _value;
-            balances[_to] = balances[_to] + _value;
+            changeBalance(_from, _to, _value);
             
             emit Transfer(_from, _to, _value);
           
             return true;
+    }
+
+    function changeBalance(address _from, address _to, uint256 _value) private{
+      balances[_from] = balances[_from] - _value;
+      balances[_to] = balances[_to] + _value;
     }
 
     /// @notice Approval selected quantity of tokens for address  
@@ -114,7 +126,7 @@ contract Token{
       view 
       returns(uint256 allow)
     {
-        return allowed[_owner][_spender];
+      return allowed[_owner][_spender];
     }
 
     /// @notice Return total supply of tokens  
