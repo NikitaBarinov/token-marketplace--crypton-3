@@ -25,7 +25,7 @@ describe('Token contract', () => {
 
     describe('Transactions', () => {
         it('Should transfer ownership from owner to addr1', async () => {
-            var c = await token.connect(owner).transferOwnership(addr1.address); 
+            await token.connect(owner).transferOwnership(addr1.address); 
             expect(await token.owner()).to.equal(addr1.address);
         });
 
@@ -50,6 +50,12 @@ describe('Token contract', () => {
             .revertedWith("Ownable: new owner is the zero address");
         });
 
+        it("Should emit OwnershipTransferred event", async () => {
+            await expect(token.connect(owner).transferOwnership(addr1.address))
+              .to.emit(token, "OwnershipTransferred")
+              .withArgs(owner.address, addr1.address);
+        });
+
         it('Should transfer tokens to addr1', async () => {
 
             await token.connect(owner).transfer(addr1.address, 1);
@@ -59,6 +65,12 @@ describe('Token contract', () => {
 
             expect(ownerBalance).to.equal("999");
             expect(addr1Balance).to.equal("1");
+        });
+
+        it("Should emit Transfer event", async () => {
+            await expect(token.connect(owner).transfer(addr1.address, 1))
+              .to.emit(token, "Transfer")
+              .withArgs(owner.address, addr1.address, 1);
         });
 
         it('Should fail if senders balance is too low', async () => {
@@ -82,6 +94,12 @@ describe('Token contract', () => {
                 .allowance(owner.address, addr1.address);
 
             expect(addr1Allowance).to.equal("10");
+        });
+
+        it("Should emit Approval event", async () => {
+            await expect(token.connect(owner).approve(addr1.address, 10))
+              .to.emit(token, "Approval")
+              .withArgs(owner.address, addr1.address, 10);
         });
 
         it('Should transfer 5 tokens from addr1 to addr2', async () => {
