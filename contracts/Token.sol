@@ -34,6 +34,11 @@ contract Token{
       _;
     }
 
+    modifier haveAllow(address from,uint256 value){
+      require(value <= allowed[from][msg.sender],"Insufficient Confirmed Funds"); 
+      _;
+    }
+
     function transferOwnership(address newOwner) public notZeroAddr(newOwner) returns(bool answer) {
       require(owner == msg.sender,"Ownable: caller is not owner");
      
@@ -81,10 +86,9 @@ contract Token{
       notZeroAddr(_from)
       notZeroAddr(_to)
       costs(_from,_value)
+      haveAllow(_from,_value)
       returns (bool answer)
     {
-            require(_value <= allowed[_from][msg.sender],"Insufficient Confirmed Funds");
-            
             allowed[_from][msg.sender] = allowed[_from][msg.sender] - _value;
             changeBalance(_from, _to, _value);
             
