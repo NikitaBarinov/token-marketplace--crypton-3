@@ -4,11 +4,14 @@ import { NetworkUserConfig } from 'hardhat/types';
 import 'hardhat-docgen'
 require('hardhat-contract-sizer');
 import '@nomiclabs/hardhat-waffle';
-//import '@typechain/hardhat';
+import '@typechain/hardhat';
 import "@nomiclabs/hardhat-etherscan";
-import "@openzeppelin/hardhat-upgrades";
+//import "@openzeppelin/hardhat-upgrades";
 import 'solidity-coverage';
+import "./tasks/Token/index.ts";
 import "./tasks/index.ts";
+require("web3");
+
 
 //define chainIds for networks 
 const chainIds = {

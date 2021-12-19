@@ -1,5 +1,5 @@
 {
-  "name": "crypton_academy_2_dao",
+  "name": "hardhat-project",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -20,7 +20,7 @@
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
     "ethers": "^5.5.2",
-    "hardhat": "^2.7.1",
+    "hardhat": "^2.8.0",
     "hardhat-contract-sizer": "^2.1.1",
     "hardhat-gas-reporter": "^1.0.6",
     "mocha": "^9.1.3",
@@ -30,5 +30,9 @@
     "typechain": "^6.0.5",
     "typescript": "^4.5.3",
     "web3": "^1.6.1"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-etherscan": "^2.1.8",
+    "hardhat-docgen": "^1.2.1"
   }
 }

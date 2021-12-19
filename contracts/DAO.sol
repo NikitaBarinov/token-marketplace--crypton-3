@@ -237,7 +237,7 @@ contract DAO{
     }
 
     /** @notice Close proposal.
-      * @param _proposalId Id of the calling proposal.
+      * @param _proposalId Id of the closing proposal.
       * @return true Status of closing proposal.
     */
     function _closeProposal(uint256 _proposalId) private returns(bool){
@@ -259,19 +259,17 @@ contract DAO{
     }
 
     /// @notice Return balance of address
-    /// @return balance[_owner] type uint256
-    function balanceOf(address _owner) external view returns(uint256){
+    /// @return balance type uint256
+    function balanceOf(address _owner) external view returns(uint256 balance){
       return balances[_owner];
     }
     
-
     /// @notice Return struct proposal
     /// @return proposals[_proposalId] type proposal
     function getProposal(uint256 _proposalId) external view returns(proposal memory){
         return proposals[_proposalId];
     }
 
-    
     /// @notice Return time then balance will be unlicked
     /// @return unlockBalance[_owner] type uint256
     function getUnlockBalance(address _owner) external view returns(uint256){

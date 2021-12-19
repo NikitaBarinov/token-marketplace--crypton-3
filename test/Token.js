@@ -14,7 +14,6 @@ describe('Token contract', () => {
         'setCommission', [10]
     );
 
-
     beforeEach(async () => {
         Token = await ethers.getContractFactory('Token');
         token = await Token.deploy();
