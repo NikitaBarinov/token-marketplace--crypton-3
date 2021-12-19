@@ -126,6 +126,97 @@ describe('Token contract', () => {
                )
            });
 
+        it('Delegate: should delegate votes', async () => {
+            await token.connect(owner).transfer(addr1.address, 205);
+            await token.connect(owner).transfer(addr2.address, 105);
+            
+            await dao.connect(owner).deposit(300);
+            await dao.connect(addr1).deposit(200);
+            await dao.connect(addr2).deposit(100);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+
+            await dao.connect(addr1).delegate(0, owner.address);
+            await dao.connect(addr2).delegate(0, owner.address);
+
+            var delegat1 = await dao.getDelegate(owner.address, 0);
+
+            expect(delegat1[0]).to.equal(addr1.address);
+            expect(delegat1[1]).to.equal(addr2.address);
+        });
+
+        it("Delegate: should emit 'Delegate'", async () => {
+            await token.connect(owner).transfer(addr1.address, 205);
+            await dao.connect(addr1).deposit(200);
+            await dao.connect(addr1).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            await expect(
+               dao.connect(addr1)
+                    .delegate(0, owner.address)
+               )
+            .to.emit(dao, "Delegate")
+               .withArgs(
+                    addr1.address,
+                    owner.address,
+                    0
+               )
+        });
+
+        it('Delegate: should delegate votes', async () => {
+            await dao.connect(owner).deposit(200);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            await expect(
+                dao.connect(addr1)
+                    .delegate(0, owner.address)
+             )
+             .to.be.revertedWith("Insufficens funds")
+        });
+
+        it("Delegate: should reverted with 'Proposal does not exist'", async () => {
+            await token.connect(owner).transfer(addr1.address, 205);
+            await dao.connect(addr1).deposit(200);
+            
+            await expect(
+                dao.connect(addr1)
+                    .delegate(0, owner.address)
+             )
+             .to.be.revertedWith("Proposal does not exist")
+        });
+
+        it("Delegate: should reverted with 'Proposal already closed'", async () => {
+            await token.connect(owner).transfer(addr1.address, 205);
+            await dao.connect(addr1).deposit(200);
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            
+            await dao.connect(owner).vote(0, true);
+    
+            await network.provider.send("evm_increaseTime", [259205])
+            await network.provider.send("evm_mine");
+    
+            await dao.connect(owner).finishVote(0);
+            await expect(
+                dao.connect(addr1)
+                    .delegate(0, owner.address)
+             )
+             .to.be.revertedWith("Proposal already closed")
+        });
+
+      
         it('Vote: should vote for', async () => {
             await dao.connect(owner).deposit(500);
             await dao.connect(owner).
@@ -137,7 +228,7 @@ describe('Token contract', () => {
             var vote = await dao.getVote(owner.address, 0);
             var result = await dao.getProposal(0);
             
-            expect(vote).to.equal(true);
+            expect(vote).to.equal(1);
             expect(result.totalVotes).to.equal(500);
         });
 
@@ -189,7 +280,7 @@ describe('Token contract', () => {
                     TransactonByteCode
                 );
             await network.provider.send("evm_increaseTime", [259200])
-        
+            await network.provider.send("evm_mine");
             await dao.connect(owner).finishVote(0);
             await expect(
                dao.connect(addr1).
@@ -247,8 +338,9 @@ describe('Token contract', () => {
             
             await dao.connect(owner).vote(0, true);
 
-            await network.provider.send("evm_increaseTime", [259200])
-            
+            await network.provider.send("evm_increaseTime", [259205])
+            await network.provider.send("evm_mine");
+
             await dao.connect(owner).finishVote(0);
 
             var tokenCommission = await token.getCommission();
@@ -391,7 +483,7 @@ describe('Token contract', () => {
 
                 var vote = await dao.getVote(owner.address, 0);
         
-                expect(vote).to.equal(true);
+                expect(vote).to.equal(1);
             });
 
             it('balanceOf: should get balance of address', async () => {
@@ -430,7 +522,6 @@ describe('Token contract', () => {
 
                 var result = await dao.getUnlockBalance(owner.address);
                 expect(result).to.equal((Number(await dao.getBlockTimeStamp())) + Number(await dao.debatingPeriod()));
-                
             });
         });
     });

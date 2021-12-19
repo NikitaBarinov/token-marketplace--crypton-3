@@ -11,6 +11,11 @@ contract DAO{
     address public voteToken;
     uint256 public minimumQuorum;
     uint256 public debatingPeriod;
+    enum checkVote{
+        notVote,
+        voted,
+        delegated
+    }
 
     struct proposal{
         address recipient;
@@ -22,18 +27,12 @@ contract DAO{
         bool open;
     } 
 
-    mapping(address => mapping(uint256 => bool)) votes;
     mapping(address => uint256)  balances;
     mapping(uint256 => proposal) public proposals;
     mapping(address => uint256) public unlockBalance;
     mapping(address => mapping(uint256 => address[])) public delegates;
-    // mapping(uint256 => mapping(address => checkVote)) public checkVoting;
-    // enum checkVote{
-    //     notVote,
-    //     voted,
-    //     delegated
-    //     };
-    // event checkVote(bool notVote, bool voted, bool delegated)
+    mapping(uint256 => mapping(address => checkVote)) public checkVoting;
+    
 
     /** @notice Create Dao.
       * @param _chairPerson The perrson who will administrate dao.
@@ -81,6 +80,17 @@ contract DAO{
         token.transferFrom(msg.sender, address(this), _amount);
         balances[msg.sender] += _amount;
         emit Deposit(msg.sender, _amount);
+    }
+
+    function delegate(uint256 _proposalId, address _delegat) 
+    external
+    proposalExist(_proposalId)
+    proposalNotClosed(_proposalId)
+    onlyTokenHolder(msg.sender)
+    {
+        delegates[_delegat][_proposalId].push(msg.sender);
+        checkVoting[_proposalId][msg.sender] = checkVote.delegated;
+        emit Delegate(msg.sender, _delegat, _proposalId); 
     }
 
     /** @notice Withdraw token to token address.
@@ -149,17 +159,25 @@ contract DAO{
     proposalNotClosed(_proposalId)
     onlyTokenHolder(msg.sender)
     {
-        require(votes[msg.sender][_proposalId] != true, "You are already voted");
+        require(checkVoting[_proposalId][msg.sender] == checkVote.notVote, "You are already voted");
     
         if(supportAgainst == true){
-            proposals[_proposalId].totalVotesFor += balances[msg.sender];
+            proposals[_proposalId].totalVotesFor += sumOfBalances(msg.sender, _proposalId);
         }
 
-        votes[msg.sender][_proposalId] = true;
-        proposals[_proposalId].totalVotes += balances[msg.sender];
+        checkVoting[_proposalId][msg.sender] = checkVote.voted;
+        proposals[_proposalId].totalVotes += sumOfBalances(msg.sender, _proposalId);
         unlockBalance[msg.sender] = block.timestamp + debatingPeriod;
 
         emit VoteCreated(msg.sender, _proposalId, balances[msg.sender], supportAgainst);
+    }
+
+     function sumOfBalances(address _sender, uint256 _proposalId) private view returns(uint256){
+        uint256 _sum = balances[_sender];
+        for(uint256 i = 0; i < delegates[msg.sender][_proposalId].length; i++){
+            _sum += balances[delegates[_sender][_proposalId][i]];
+        }
+        return _sum;
     }
 
     /** @notice Finish proposal and close it.
@@ -173,7 +191,7 @@ contract DAO{
     proposalNotClosed(_proposalId) 
     returns(bool _success)
     {
-        require(proposals[proposalId].endTime >= block.timestamp,"Time for voting is not over");
+        require(proposals[proposalId].endTime < block.timestamp,"Time for voting is not over");
         
         if(proposalPoll(_proposalId)){
             executeProposal(_proposalId);
@@ -229,9 +247,15 @@ contract DAO{
     }
 
     /// @notice Return which option is the vote 
-    /// @return votes[_voter][_proposalId] type bool
-    function getVote(address _voter, uint256 _proposalId) external view returns(bool){
-        return votes[_voter][_proposalId];
+    /// @return checkVoting[_proposalId][_voter] type uint
+    function getVote(address _voter, uint256 _proposalId) external view returns(uint256){
+        return uint(checkVoting[_proposalId][_voter]);
+    }
+
+    /// @notice Return addresses who delegate tokens to msg.sender 
+    /// @return delegates[_voter][_proposalId] type address
+    function getDelegate(address _voter, uint256 _proposalId) external view returns(address[] memory){
+        return delegates[_voter][_proposalId];
     }
 
     /// @notice Return balance of address
@@ -239,6 +263,7 @@ contract DAO{
     function balanceOf(address _owner) external view returns(uint256){
       return balances[_owner];
     }
+    
 
     /// @notice Return struct proposal
     /// @return proposals[_proposalId] type proposal
@@ -279,6 +304,8 @@ contract DAO{
     event Deposit(address sender, uint256 _amount);
 
     event Withdraw(address sender, uint256 _amount);
+    
+    event Delegate(address _from, address _to, uint256 _proposalId);
 
     event VoteCreated(address _voter, uint256 proposalId, uint256 _amount, bool _forAgainst);
 }
