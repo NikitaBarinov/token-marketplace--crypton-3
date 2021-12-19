@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Token/Token.sol";
 
+/**@title DAO contract */
 contract DAO{
     Token private token;
     uint256 private proposalId = 0;
@@ -26,6 +27,12 @@ contract DAO{
     mapping(uint256 => proposal) public proposals;
     mapping(address => uint256) public unlockBalance;
     
+    /** @notice Create Dao.
+      * @param _chairPerson The perrson who will administrate dao.
+      * @param _voteToken address of voting token.
+      * @param _minimumQuorum minimum quantiti of tokens for successful proposal.
+      * @param _debatingPeriod Period for voting.
+    */
     constructor(
         address _chairPerson,
         address _voteToken,
@@ -59,12 +66,18 @@ contract DAO{
         _;
     }
 
+    /** @notice Deposit token from token address.
+      * @param _amount Amount of deposit tokens.
+    */
     function deposit(uint256 _amount) public payable{
         token.transferFrom(msg.sender, address(this), _amount);
         balances[msg.sender] += _amount;
         emit Deposit(msg.sender, _amount);
     }
 
+    /** @notice Withdraw token to token address.
+      * @param _amount Amount of withdrawing tokens.
+    */
     function withdraw(uint256 _amount) external {
         require(unlockBalance[msg.sender] <= block.timestamp,"Balance still lock");
         balances[msg.sender] -= _amount;
@@ -73,6 +86,11 @@ contract DAO{
         emit Withdraw(msg.sender, _amount);
     }
 
+    /** @notice Add proposal and start voting.
+      * @param _recipient Address of token there send transactionbytecode.
+      * @param _description Description of proposal.
+      * @param _transactionByteCode Bytecode of sending transaction.
+    */
     function addProposal(
         address _recipient,
         string memory _description,
@@ -95,6 +113,10 @@ contract DAO{
         emit ProposalCreated(_recipient, _transactionByteCode, _description, _proposal.endTime);
     }
 
+    /** @notice Change voting rules.
+      * @param _minimumQuorum Minimum quantiti of tokens for successful proposal.
+      * @param _debatingPeriodDuration Period of time for voting.
+    */  
     function changeVotingRules(
         uint256 _minimumQuorum,
         uint256 _debatingPeriodDuration
@@ -107,6 +129,10 @@ contract DAO{
         emit VotingRulesChanged(minimumQuorum, debatingPeriod);
     }
 
+    /** @notice Takes vote from address and lock balance of address.
+      * @param _proposalId Id of the calling proposal.
+      * @param supportAgainst Vote for or against.
+    */  
     function vote(
         uint256 _proposalId,
         bool supportAgainst
@@ -116,19 +142,22 @@ contract DAO{
     onlyTokenHolder(msg.sender)
     {
         require(votes[msg.sender][_proposalId] != true, "You are already voted");
-       
-        votes[msg.sender][_proposalId] = true;
-        
+    
         if(supportAgainst == true){
             proposals[_proposalId].totalVotesFor += balances[msg.sender];
         }
 
+        votes[msg.sender][_proposalId] = true;
         proposals[_proposalId].totalVotes += balances[msg.sender];
         unlockBalance[msg.sender] = block.timestamp + debatingPeriod;
 
         emit VoteCreated(msg.sender, _proposalId, balances[msg.sender], supportAgainst);
     }
-    
+
+    /** @notice Finish proposal and close it.
+      * @param _proposalId Id of the calling proposal.
+      * @return _success true if proposal successfull execute, false if not.
+    */  
     function finishVote(
         uint256 _proposalId
     ) external 
@@ -158,6 +187,10 @@ contract DAO{
         return _success;
     }
 
+    /** @notice Decides on proposal.
+      * @param _proposalId Id of the calling proposal.
+      * @return _success true if proposal successfull< false if not.
+    */
     function proposalPoll(uint256 _proposalId) private view returns(bool _success){
         if(
             proposals[_proposalId].totalVotes >= minimumQuorum &&
@@ -165,37 +198,55 @@ contract DAO{
         ){
             return true;
         }
-
         return false;
     }
 
+    /** @notice Execute successful proposal.
+      * @param _proposalId Id of the calling proposal.
+      * @return success Status of executing proposal.
+    */
     function executeProposal(uint256 _proposalId) private returns(bool){
         (bool success, ) = proposals[_proposalId].recipient.call(proposals[_proposalId].transactionByteCode);
         return success;
     }
 
+    /** @notice Close proposal.
+      * @param _proposalId Id of the calling proposal.
+      * @return true Status of closing proposal.
+    */
     function _closeProposal(uint256 _proposalId) private returns(bool){
         proposals[_proposalId].open = false;
         emit ProposalClosed(proposalId);
         return true;
     }
 
+    /// @notice Return which option is the vote 
+    /// @return votes[_voter][_proposalId] type bool
     function getVote(address _voter, uint256 _proposalId) external view returns(bool){
         return votes[_voter][_proposalId];
     }
 
-    function balanceOf(address _owner) external view returns(uint256 balance){
+    /// @notice Return balance of address
+    /// @return balance[_owner] type uint256
+    function balanceOf(address _owner) external view returns(uint256){
       return balances[_owner];
     }
-    
+
+    /// @notice Return struct proposal
+    /// @return proposals[_proposalId] type proposal
     function getProposal(uint256 _proposalId) external view returns(proposal memory){
         return proposals[_proposalId];
     }
 
+    
+    /// @notice Return time then balance will be unlicked
+    /// @return unlockBalance[_owner] type uint256
     function getUnlockBalance(address _owner) external view returns(uint256){
         return unlockBalance[_owner];
     }
 
+    /// @notice Return block.timestamp
+    /// @return block.timestamp type uint256
     function getBlockTimeStamp() external view returns(uint256){
         return block.timestamp;
     }
