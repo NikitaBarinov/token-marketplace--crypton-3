@@ -26,7 +26,15 @@ contract DAO{
     mapping(address => uint256)  balances;
     mapping(uint256 => proposal) public proposals;
     mapping(address => uint256) public unlockBalance;
-    
+    mapping(address => mapping(uint256 => address[])) public delegates;
+    // mapping(uint256 => mapping(address => checkVote)) public checkVoting;
+    // enum checkVote{
+    //     notVote,
+    //     voted,
+    //     delegated
+    //     };
+    // event checkVote(bool notVote, bool voted, bool delegated)
+
     /** @notice Create Dao.
       * @param _chairPerson The perrson who will administrate dao.
       * @param _voteToken address of voting token.
@@ -165,7 +173,7 @@ contract DAO{
     proposalNotClosed(_proposalId) 
     returns(bool _success)
     {
-        //require(proposals[proposalId].endTime >= block.timestamp,"Time for voting is not over");
+        require(proposals[proposalId].endTime >= block.timestamp,"Time for voting is not over");
         
         if(proposalPoll(_proposalId)){
             executeProposal(_proposalId);
