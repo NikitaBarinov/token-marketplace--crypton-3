@@ -1,23 +1,24 @@
 const fs = require('fs');
 
 async function main() {
-    const [deployer] = await ethers.getSigners();
-    console.log('Deploying contract with account:',deployer.address);
+    const accounts = await ethers.getSigners();
+    console.log('Deploying contract with account:',accounts[1].address);
     
-    const balance = await deployer.getBalance();
+    const balance = await accounts[1].getBalance();
     console.log('Account balance ',balance.toString());
+    
 
-    const Token = await ethers.getContractFactory('Token');
+    const metadata = JSON.parse(fs.readFileSync('artifacts/contracts/Token.sol/Token.json'))
+    
+    const Token = await ethers.getContractFactory(metadata.abi, metadata.bytecode, accounts[1]);
     const token = await Token.deploy();
+    await token.deployed();
     console.log('Token address:',token.address);
-
-    const data = {
-      addressOwner:deployer.address,
-      address: token.address,
-      abi: JSON.parse(token.interface.format('json'))
-    };
-    fs.writeFileSync('frontend/src/Token.json',
-    JSON.stringify(data));
+    
+    fs.appendFileSync(
+      `.env`,
+    `\r\# Deployed at \rTOKEN_ADDRESS=${token.address}\r`
+  );
 }   
 
 main()

@@ -1,18 +1,36 @@
-
+const Web3 = require('web3');
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe('Token contract', () => {
-    let Token, token, owner, addr1, addr2;
+    let Token, token, Dao, dao, chairPerson, owner, addr1, addr2;
+    // const metadata = JSON.parse(fs.readFileSync('artifacts/contracts/Token.sol/Token.json'));
+    // metadata.abi 
+
+    const setCommisionAbi = ["function setCommission(uint256 newCommission)"];
+    const setCommissionInt = new ethers.utils.Interface(setCommisionAbi);
+
+    TransactonByteCode = setCommissionInt.encodeFunctionData(
+        'setCommission', [10]
+    );
+
 
     beforeEach(async () => {
         Token = await ethers.getContractFactory('Token');
         token = await Token.deploy();
-        [owner, addr1, addr2, _] = await ethers.getSigners();
+        [owner, chairPerson, addr1, addr2, _] = await ethers.getSigners();
+        Dao = await ethers.getContractFactory('DAO');
+        dao = await Dao.deploy(
+            chairPerson.address, 
+            token.address, 
+            500, 
+            (3600 * 24 * 3)
+        );
+        token.connect(owner).setDaoAddress(dao.address);
     });
 
     describe('Deployment', () => {
-        it('Should set right owner', async () => {
+        it('Should set right owner for token', async () => {
             await token.deployed();
             expect(await token.owner()).to.equal(owner.address);
         });
@@ -21,215 +39,399 @@ describe('Token contract', () => {
             const ownerBalance = await token.balanceOf(owner.address);
             expect(await token.totalSupply()).to.equal(ownerBalance);
         });
+
+        it('Should set right chair person', async () => {
+            expect(await dao.chairPerson()).to.equal(chairPerson.address);
+        });
+
+        it('Should set right chair token', async () => {
+            expect(await dao.voteToken()).to.equal(token.address);
+        });
+
+        it('Should set right chair minimum Quorum', async () => {
+            expect(await dao.minimumQuorum()).to.equal(500);
+        });
+
+        it('Should set right chair voting period', async () => {
+            expect(await dao.debatingPeriod()).to.equal(3600 * 24 * 3);
+        });
+
+        it('Should set right dao address', async () => {
+            expect(dao.address).to.equal(await token.getDaoAddress());
+        });
     });
 
     describe('Transactions', () => {
-        it('Should transfer ownership from owner to addr1', async () => {
-            await token.connect(owner).transferOwnership(addr1.address);
-            expect(await token.owner()).to.equal(addr1.address);
+        it('Should deposit 500 tokens on dao', async () => {
+            await dao.connect(owner).deposit(500);
+            const ownerBalanceDao = await dao.balanceOf(owner.address);
+            const ownerBalanceToken = await token.balanceOf(owner.address);
+            expect(ownerBalanceDao).to.equal("500");
+            expect(ownerBalanceToken).to.equal("500");
+        });
+        
+        it('Should deposit 500 tokens on owner address and 300 on addr1', async () => {
+            await token.connect(owner).transfer(addr1.address, 305);
+
+            await dao.connect(owner).deposit(500);
+            await dao.connect(addr1).deposit(300);
+            
+            const ownerBalance = await dao.balanceOf(owner.address);
+            const addr1Balance = await dao.balanceOf(addr1.address);
+            
+            expect(ownerBalance).to.equal("500");
+            expect(addr1Balance).to.equal("300");
         });
 
-        it('Should fail if msg.sender not owner', async () => {
-            await
-                expect(token
-                    .connect(addr2)
-                    .transferOwnership(addr1.address))
-                    .to
-                    .be
-                    .revertedWith("Ownable: caller is not owner");
+        it("Add proposal: should add proposal", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            
+            var result = await dao.getProposal(0);
+
+            expect(result.recipient).to.equal(token.address);
+            expect(result.transactionByteCode).to.equal(TransactonByteCode);
+            expect(result.description).to.equal("test proposal");
+            expect(result.open).to.equal(true);
         });
 
-        it('Should fail if newOwner have zero address', async () => {
-            await
-                expect(token
-                    .connect(owner)
-                    .transferOwnership("0x0000000000000000000000000000000000000000")
+        it("Add proposal: should reverted if not token holder", async () => {
+         await expect(
+            dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode))
+            .to.be.revertedWith("Insufficens funds")
+        });
+
+        it("Add proposal: should emit 'ProposalCreated'", async () => {
+            await dao.connect(owner).deposit(500);
+            await expect(
+               dao.connect(owner).
+                   addProposal(
+                       token.address,
+                       "test proposal",
+                       TransactonByteCode))
+            .to.emit(dao, "ProposalCreated")
+               .withArgs(
+                    token.address,
+                    TransactonByteCode,
+                    "test proposal",
+                    (Number(await dao.getBlockTimeStamp())) + Number(await dao.debatingPeriod())
+               )
+           });
+
+        it('Vote: should vote for', async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            await dao.connect(owner).vote(0, true);
+            var vote = await dao.getVote(owner.address, 0);
+            var result = await dao.getProposal(0);
+            
+            expect(vote).to.equal(true);
+            expect(result.totalVotes).to.equal(500);
+        });
+
+        it("Vote: should emit 'VoteCreated'", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            await expect(
+               dao.connect(owner).
+                    vote(0, true)
+               )
+            .to.emit(dao, "VoteCreated")
+               .withArgs(
+                    owner.address,
+                    0,
+                    await dao.balanceOf(owner.address),
+                    true
+               )
+        });
+
+        it("Vote: should reverted if not token holder", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode
+                );
+
+            await expect(
+               dao.connect(addr1).
+                   vote(
+                       0,
+                       true
+                    )
+            )
+            .to.be.revertedWith("Insufficens funds")
+        });
+
+        it("Vote: should reverted if proposal already closed", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode
+                );
+            await network.provider.send("evm_increaseTime", [259200])
+        
+            await dao.connect(owner).finishVote(0);
+            await expect(
+               dao.connect(addr1).
+                   vote(
+                       0,
+                       true
+                    )
+            )
+            .to.be.revertedWith("Proposal already closed")
+        });
+
+        it("Vote: should reverted if proposal doesn't exist", async () => {
+            await dao.connect(owner).deposit(500);
+            await expect(
+               dao.connect(owner).
+                   vote(
+                       0,
+                       true
+                    )
+            )
+            .to.be.revertedWith("Proposal does not exist")
+        });
+
+        it("Vote: should reverted if voter already vote", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode
+                );
+            await dao.connect(owner).
+                   vote(
+                       0,
+                       true
+                    )
+
+            await expect(
+                dao.connect(owner).
+                    vote(
+                        0,
+                        true
+                     )
+             )
+            .to.be.revertedWith("You are already voted")
+        });
+
+        it('FinishVote: should finish vote and change commission from 5 to 10', async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            
+            await dao.connect(owner).vote(0, true);
+
+            await network.provider.send("evm_increaseTime", [259200])
+            
+            await dao.connect(owner).finishVote(0);
+
+            var tokenCommission = await token.getCommission();
+            var result = await dao.getProposal(0);
+            
+            expect(result.open).to.equal(false);
+            expect(result.totalVotes).to.equal(500);
+            expect(tokenCommission).to.equal(10);
+        });
+        
+        it("FinishVote: should emit 'ProposalFinished'", async () => {
+           
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            
+            await dao.connect(owner).vote(0, true);
+
+            await ethers.provider.send("evm_setNextBlockTimestamp", [ 1741377391]);
+    
+            await expect(
+                dao.connect(owner).
+                    finishVote(0)
                 )
-                    .to
-                    .be
-                    .revertedWith("Address is zero address");
+            .to.emit(dao, "ProposalFinished")
+                .withArgs(
+                    0,
+                    TransactonByteCode,
+                    "test proposal",
+                    true
+                )
         });
 
-        it("Should emit OwnershipTransferred event", async () => {
-            await expect(token.connect(owner).transferOwnership(addr1.address))
-                .to.emit(token, "OwnershipTransferred")
-                .withArgs(owner.address, addr1.address);
+        it("FinishVote: should revert with 'Proposal already closed'", async () => {
+            await dao.connect(owner).deposit(500);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+            
+            await dao.connect(owner).vote(0, true);
+            await dao.connect(owner).finishVote(0);
+            await expect(
+                dao.connect(owner).
+                    finishVote(0)
+             )
+            .to.be.revertedWith("Proposal already closed")
         });
 
-        it('Should transfer tokens to addr1', async () => {
-
-            await token.connect(owner).transfer(addr1.address, 1);
-
-            const ownerBalance = await token.balanceOf(owner.address);
-            const addr1Balance = await token.balanceOf(addr1.address);
-
-            expect(ownerBalance).to.equal("999");
-            expect(addr1Balance).to.equal("1");
+        it("FinishVote: should revert with 'Proposal does not exist'", async () => {
+            await expect(
+                dao.connect(owner).
+                    finishVote(5)
+            )
+            .to.be.revertedWith("Proposal does not exist")
         });
 
-        it("Should emit Transfer event", async () => {
-            await expect(token.connect(owner).transfer(addr1.address, 1))
-                .to.emit(token, "Transfer")
-                .withArgs(owner.address, addr1.address, 1);
+        it('ChangeVotingRules: should change voting rules', async () => {        
+            await dao
+                .connect(chairPerson)
+                .changeVotingRules(
+                        600,
+                        2 * 24 * 3600
+                )
+            var finalMinQuorum = await dao.minimumQuorum();
+            var finalDebatingPeriod = await dao.debatingPeriod();               
+
+            expect(finalDebatingPeriod).to.equal(2 * 24 * 3600);
+            expect(finalMinQuorum).to.equal(600); 
         });
 
-        it('Should fail if senders balance is too low', async () => {
-            await expect(token.connect(addr1).transfer(owner.address, 2))
-                .to
-                .be
-                .revertedWith('Insufficient funds');
-
-            const ownerBalance = await token.balanceOf(owner.address);
-            const addr1Balance = await token.balanceOf(addr1.address);
-
-            expect(ownerBalance).to.equal("1000");
-            expect(addr1Balance).to.equal("0");
+        it("ChangeVotingRules: should emit 'VotingRulesChanged'", async () => {
+            await expect(
+                dao.connect(chairPerson)
+                    .changeVotingRules(
+                        600,
+                        2 * 24 * 3600
+                    )
+                )
+            .to.emit(dao, "VotingRulesChanged")
+                .withArgs(
+                    600,
+                    2 * 24 * 3600
+                )
         });
 
-        it('Should approve 10 tokens for addr1', async () => {
-
-            await token.connect(owner).approve(addr1.address, 10);
-
-            const addr1Allowance = await token
-                .allowance(owner.address, addr1.address);
-
-            expect(addr1Allowance).to.equal("10");
+        it("ChangeVotingRules: should revert with 'You are not chair person'", async () => {
+            await expect(
+                dao.connect(owner)
+                    .changeVotingRules(
+                        600,
+                        2 * 24 * 3600
+                )
+            )
+            .to.be.revertedWith("You are not chair person")
         });
 
-        it("Should emit Approval event", async () => {
-            await expect(token.connect(owner).approve(addr1.address, 10))
-                .to.emit(token, "Approval")
-                .withArgs(owner.address, addr1.address, 10);
+        it('Withdraw: should withdraw tokens', async () => {     
+            await dao.connect(owner).deposit(501);
+            await dao
+                .connect(owner)
+                .withdraw(300);
+
+            var finalbalanceDao = await dao.balanceOf(owner.address);
+            var finalbalanceToken = await token.balanceOf(owner.address);            
+
+            expect(finalbalanceDao).to.equal(201);
+            expect(finalbalanceToken).to.equal(804); 
         });
 
-        it('Should transfer 5 tokens from addr1 to addr2', async () => {
-            await token.connect(owner)
-                .approve(
-                    addr1.address,
-                    10
-                );
+        it("Withdraw: should revert with 'Balance still lock'", async () => {     
+            await dao.connect(owner).deposit(501);
+            await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
 
-            await token.connect(addr1)
-                .transferFrom(
-                    owner.address,
-                    addr2.address,
-                    5
-                );
+            await dao.connect(owner).vote(0, true);
 
-            const addr1Allowance = await token
-                .allowance(
-                    owner.address,
-                    addr1.address
-                );
-
-            const ownerBalance = await token.balanceOf(owner.address);
-            const addr2Balance = await token.balanceOf(addr2.address);
-
-            expect(ownerBalance).to.equal("995");
-            expect(addr2Balance).to.equal("5");
-            expect(addr1Allowance).to.equal("5");
+                await expect(
+                    dao.connect(owner)
+                    .withdraw(300)
+                )
+                .to.be.revertedWith("Balance still lock")
         });
+        describe('View functions', () => {
+            it('getVote: should get vote', async () => {
+                await dao.connect(owner).deposit(500);
+                await dao.connect(owner).
+                    addProposal(
+                        token.address,
+                        "test proposal",
+                        TransactonByteCode);
+                await dao.connect(owner).vote(0, true);
 
-        it('Should fail if sender allowance is too low', async () => {
-            await expect(token.connect(addr1).transferFrom(
-                owner.address,
-                addr2.address,
-                5
-            ))
-                .to
-                .be
-                .revertedWith('Insufficient Confirmed Funds');
+                var vote = await dao.getVote(owner.address, 0);
+        
+                expect(vote).to.equal(true);
+            });
 
-            const addr1Allowance = await token
-                .allowance(
-                    owner.address,
-                    addr1.address
-                );
+            it('balanceOf: should get balance of address', async () => {
+                await dao.connect(owner).deposit(500);
+                
+                var balance = await dao.balanceOf(owner.address);
+        
+                expect(balance).to.equal(500);
+            });
 
-            expect(addr1Allowance).to.equal("0");
-        });
+            it('getProposal: should get proposal', async () => {
+                await dao.connect(owner).deposit(500);
+                await dao.connect(owner).
+                    addProposal(
+                        token.address,
+                        "test proposal",
+                        TransactonByteCode);
 
-        it('Should fail if senders balance is too low', async () => {
-            await expect(token.connect(addr1).transferFrom(
-                addr1.address,
-                addr2.address,
-                5
-            ))
-                .to
-                .be
-                .revertedWith('Insufficient funds');
+                var result = await dao.getProposal(0);
 
-            const addr1Balance = await token
-                .balanceOf(
-                    addr1.address
-                );
+                expect(result.recipient).to.equal(token.address);
+                expect(result.transactionByteCode).to.equal(TransactonByteCode);
+                expect(result.description).to.equal("test proposal");
+                expect(result.open).to.equal(true);
+            });
 
-            expect(addr1Balance).to.equal("0");
-        });
+            it('getUnlockBalance: should get block.timestamp then balance will be unlocked', async () => {
+                await dao.connect(owner).deposit(500);
+                await dao.connect(owner).
+                addProposal(
+                    token.address,
+                    "test proposal",
+                    TransactonByteCode);
+                
+                await dao.connect(owner).vote(0, true);
 
-        it('Should minted 5 tokens to addr1', async () => {
-            await token.connect(owner)
-                .mint(
-                    addr1.address,
-                    5
-                );
-            const finalAddr1Balance = await token.balanceOf(addr1.address);
-            const finalTotalSupply = await token.totalSupply();
-            expect(finalAddr1Balance).to.equal("5");
-            expect(finalTotalSupply).to.equal("1005");
-        });
-
-        it('Should fail not owner can mint tokens', async () => {
-            await expect(token.connect(addr1).mint(
-                addr2.address,
-                5
-            ))
-                .to
-                .be
-                .revertedWith("Ownable: caller is not owner");
-            const finalAddr2Balance = await token.balanceOf(addr2.address);
-            expect(finalAddr2Balance).to.equal("0");
-        });
-
-        it('Should burned 5 tokens of addr1', async () => {
-            await token.connect(owner).transfer(addr1.address, 5);
-
-            await token.connect(owner)
-                .burn(
-                    addr1.address,
-                    5
-                );
-            const finalAddr1Balance = await token.balanceOf(addr1.address);
-            const finalTotalSupply = await token.totalSupply();
-            expect(finalAddr1Balance).to.equal("0");
-            expect(finalTotalSupply).to.equal("995");
-        });
-
-        it('Should fail if not owner can burn tokens', async () => {
-            await token.connect(owner).transfer(addr2.address, 5);
-            await expect(token.connect(addr1)
-                .burn(
-                    addr2.address,
-                    5
-                ))
-                .to
-                .be
-                .revertedWith("Ownable: caller is not owner");
-            const finalAddr2Balance = await token.balanceOf(addr2.address);
-            expect(finalAddr2Balance).to.equal("5");
-        });
-
-        it('Should fail if can burn not exist tokens', async () => {
-            await expect(token.connect(addr1)
-                .burn(
-                    addr2.address,
-                    5
-                ))
-                .to
-                .be
-                .revertedWith("Insufficient funds");
-            const finalAddr2Balance = await token.balanceOf(addr2.address);
-            expect(finalAddr2Balance).to.equal("0");
+                var result = await dao.getUnlockBalance(owner.address);
+                expect(result).to.equal((Number(await dao.getBlockTimeStamp())) + Number(await dao.debatingPeriod()));
+                
+            });
         });
     });
 });

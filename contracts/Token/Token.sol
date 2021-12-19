@@ -1,61 +1,69 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+import "./IToken.sol";
+
 /// @title The ERC20 Token
 /// @author Barinov N.N.
 /// @notice You can use this contract for studing
 /// @dev All function calls are currently implemented without side effects
-contract Token{
+contract Token is ITokenInterface{
   address public owner;
-  string public name;
-  string public symbol;
+  address private daoAddress;
+  string public constant name = "Sezam";
+  string public constant symbol = "SZM";
   uint256 private totalSupply_;
-  uint8 public decimals;
-  
+  uint8 public constant decimals = 18;
+
+  uint256 private commission;
+  address private commissionRecipient; 
+
   mapping(address => uint256) private balances;
   mapping(address => mapping(address => uint256)) private allowed;
 
   constructor() public {
       owner = msg.sender;
-      name = "Sezam";
-      symbol = "SZM";
-      decimals = 18;
       totalSupply_ = 1000;
       balances[owner] = totalSupply_;
-  }
-
-  modifier notZeroAddr(address testAddr){
-      require(testAddr != address(0),"Address is zero address");
-    _;
+      allowed[owner][owner] = totalSupply_;
+      commission = 5;
+      commissionRecipient = msg.sender;
   }
 
   modifier costs(address addrOf,uint256 value){
-    require(balances[addrOf] >= value,"Insufficient funds");
-    _;
-  }
-
-  modifier haveAllow(address from,uint256 value){
-    require(value <= allowed[from][msg.sender],"Insufficient Confirmed Funds"); 
+    require((balances[addrOf] + commission) >= value,"Insufficient funds");
     _;
   }
 
   modifier onlyOwner(){
-    require(owner == msg.sender,"Ownable: caller is not owner"); 
+    require(owner == msg.sender || msg.sender == daoAddress,"Ownable: caller is not owner"); 
     _;
   }
 
+  function setDaoAddress(address _dao)external onlyOwner{
+    daoAddress = _dao;
+  }
+
+  function getDaoAddress()external view returns(address){
+    return daoAddress;
+  }
+
+  function setCommission(uint256 newCommission) external onlyOwner{
+    commission = newCommission;
+    emit CommissionChanged(commission);
+  }
   /// @notice Transfer ownership from owner to choisen address
   /// @param newOwner The address of new owner of contract 
   /// @return answer that operation was successfully completed 
   function transferOwnership(address newOwner) 
-  external 
+  external
+  override 
   onlyOwner 
-  notZeroAddr(newOwner) 
   returns(bool answer) 
   {
     address oldOwner = owner;
     owner = newOwner;
-    
+  
     emit OwnershipTransferred(oldOwner,newOwner);  
     return true;
   }
@@ -70,14 +78,13 @@ contract Token{
     address _to,
     uint256 _value
   ) 
-  public
+  external
+  override
   costs(msg.sender,_value)
-  notZeroAddr(_to)
   returns (bool answer)
   {
-    address _from = msg.sender;
-    changeBalance(_from, _to, _value);
-    emit Transfer(_from, _to, _value);
+    _beforeTokenTransfer(msg.sender);
+    changeBalance(msg.sender, _to, _value);
     return true;
   }
 
@@ -93,20 +100,17 @@ contract Token{
     address _to,
     uint _value
   ) 
-    public
-    notZeroAddr(_from)
-    notZeroAddr(_to)
-    costs(_from,_value)
-    haveAllow(_from,_value)
+    external
+    override
+    costs(_from, _value + commission)
     returns (bool answer)
   {
-      allowed[_from][msg.sender] -= _value;
-      changeBalance(_from, _to, _value);
-      
-      emit Transfer(_from, _to, _value);
-    
-      return true;
-  }
+    //require(_value <= allowed[_from][msg.sender],"Insufficient Confirmed Funds");
+    //allowed[_from][msg.sender] -= _value;
+    _beforeTokenTransfer(_from);
+    changeBalance(_from, _to, _value);
+    return true;
+}
 
   /// @notice changes balances on two accounts to value 
   /// @param _from The address of giving account 
@@ -115,6 +119,13 @@ contract Token{
   function changeBalance(address _from, address _to, uint256 _value) private{
     balances[_from] = balances[_from] - _value;
     balances[_to] = balances[_to] + _value;
+    emit Transfer(_from, _to, _value);
+  }
+
+  function _beforeTokenTransfer(
+    address from
+  ) private {
+    changeBalance(from, commissionRecipient, commission);
   }
 
   /// @notice Approval selected quantity of tokens for address  
@@ -125,7 +136,8 @@ contract Token{
     address _spender,
     uint256 _value
   ) 
-    public 
+    external 
+    override
     returns (bool answer)
   {
       allowed[msg.sender][_spender] += _value;
@@ -141,12 +153,14 @@ contract Token{
     uint256 _mintedAmount
   ) 
   external 
+  override
   onlyOwner
-  notZeroAddr(_target)
+  returns(bool)
   {
     balances[_target] += _mintedAmount;
     totalSupply_ += _mintedAmount;
     emit Transfer(address(0), _target, _mintedAmount);
+    return true;
   }
 
   /// @notice Have burn choisen quantity of tokens  
@@ -157,16 +171,18 @@ contract Token{
     uint256 _burnedAmount
   ) 
   external 
+  override
   costs(
     _target,
     _burnedAmount
   ) 
   onlyOwner
-  notZeroAddr(_target)
+  returns(bool)
   {
     balances[_target] -= _burnedAmount;
     totalSupply_ -= _burnedAmount;
     emit Transfer(_target, address(0), _burnedAmount);
+    return true;
   }
 
   /// @notice Return quantity of approval tokens  
@@ -178,6 +194,7 @@ contract Token{
     address _spender
   ) 
     external
+    override
     view 
     returns(uint256 allow)
   {
@@ -186,24 +203,17 @@ contract Token{
 
   /// @notice Return total supply of tokens  
   /// @return totSupply type uint256
-  function totalSupply() external view returns (uint256 totSupply ){
+  function totalSupply() external view override returns (uint256 totSupply ){
       return totalSupply_;
+  }
+
+  function getCommission() external view returns(uint256){
+    return commission;
   }
 
   /// @notice Return balance of address   
   /// @return balance type uint256
-  function balanceOf(address _owner) external view returns(uint256 balance){
+  function balanceOf(address _owner) external view override returns(uint256 balance){
       return balances[_owner];
   }
-
-  /// An event for tracking a approval of tokens.
-  event Approval(address indexed tokenOwner, address indexed spender,
-    uint tokens);
-
-  /// An event for tracking a transfer of tokens.
-  event Transfer(address indexed _from, address indexed _to,
-    uint256 _value);
-
-  /// An event for tracking owner of contract.
-  event OwnershipTransferred(address indexed previosOwner, address indexed newOwner);
 }
