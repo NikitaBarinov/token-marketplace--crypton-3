@@ -25,6 +25,7 @@ describe('Token contract', () => {
         await tradingFloor.deployed();
         
         token.connect(owner).setRoleForTradingFloor(tradingFloor.address);
+        tradingFloor.connect(owner).tradingFloorInit();
     });
 
     describe('Deployment', () => {
@@ -42,6 +43,14 @@ describe('Token contract', () => {
 
         it('Should set right trading floor address', async () => {
             expect(tradingFloor.address).to.equal(await tradingFloor.getTradingFloorAddress());
+        });
+
+        it('Should set right balance for floor address', async () => {
+            expect(
+                await tradingFloor.balanceOfACDM(tradingFloor.address))
+            .to.equal(
+                await token.balanceOf(tradingFloor.address)
+            );       
         });
     });
 
@@ -218,7 +227,209 @@ describe('Token contract', () => {
                 tradingFloor.address
             )
         });
+
+        it('buyACDMInSale: should buy 10 ACDM', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+            console.log(Number(await tradingFloor.balanceOfETH(tradingFloor.address)));
+            console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
+            console.log("___________");
+            console.log(Number(await token.balanceOf(tradingFloor.address)));
+            console.log(Number(await token.balanceOf(addr1.address)));
+            console.log("___________");
+            console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
+            console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
+            console.log("___________");
+            
+            
+            //console.log(await tradingFloor.transferFromACDM(tradingFloor.address, addr1.address, ethers.utils.parseEther("20")));
+            
+            // console.log(Number(await token.balanceOf(addr1.address)));
+            // console.log("___________");
+            // console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
+            // console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
+            // console.log("___________"););
+            
+            await tradingFloor.connect(addr1).buyACDMInSale(100);
+
+            balanceOfTradingFloorInETH = Number(await tradingFloor.balanceOfETH(tradingFloor.address));
+            balanceOfAddr1InTradingFloorInETH = Number(await tradingFloor.balanceOfETH(addr1.address));
+            console.log("___________");
+            balanceOfTradingFloorInToken = Number(await token.balanceOf(tradingFloor.address));
+            balanceOfAddr1InToken = Number(await token.balanceOf(addr1.address));
+            console.log("___________");
+            balanceOfTradingFloorInACDM = Number(await tradingFloor.balanceOfACDM(tradingFloor.address));
+            balanceOfAddr1InACDM = Number(await tradingFloor.balanceOfACDM(addr1.address));
+            console.log("___________");
         
+           
+        
+            expect(balanceOfTradingFloorInETH).to.equal("1000000000000000");
+            expect(balanceOfTradingFloorInETH).to.equal("19999000000000000000");
+            expect(balanceOfTradingFloorInToken).to.equal(balanceOfTradingFloorInACDM);
+            expect(balanceOfAddr1InToken).to.equal(balanceOfAddr1InACDM);
+        });
+
+        it('Registration: should register user with first refers', async () => {
+            await tradingFloor.connect(addr2)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+            await tradingFloor.connect(owner)
+                .registration(
+                    addr2.address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            const ownerBalance = await tradingFloor.balanceOfETH(owner.address);
+            const ownerRefers = await tradingFloor.getRefer(owner.address);
+        
+            expect(ownerRefers.firstRefer).to.equal(addr2.address);
+            expect(ownerRefers.secondRefer).to.equal(tradingFloor.address);
+            expect(ownerBalance).to.equal("20000000000000000000");
+        });
+
+        it('Registration: should register user with second refers', async () => {
+            await tradingFloor.connect(addr2)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+            await tradingFloor.connect(owner)
+                .registration(
+                    zero_address,
+                    addr2.address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            const ownerBalance = await tradingFloor.balanceOfETH(owner.address);
+            const ownerRefers = await tradingFloor.getRefer(owner.address);
+        
+            expect(ownerRefers.firstRefer).to.equal(tradingFloor.address);
+            expect(ownerRefers.secondRefer).to.equal(addr2.address);
+            expect(ownerBalance).to.equal("20000000000000000000");
+        });
+
+        it('Registration: should register user with 2 refers', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            await tradingFloor.connect(addr2)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                        value: ethers.utils.parseEther("20")
+                }
+            );
+
+            await tradingFloor.connect(owner)
+                .registration(
+                    addr1.address,
+                    addr2.address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            const ownerBalance = await tradingFloor.balanceOfETH(owner.address);
+            const ownerRefers = await tradingFloor.getRefer(owner.address);
+        
+            expect(ownerRefers.firstRefer).to.equal(addr1.address);
+            expect(ownerRefers.secondRefer).to.equal(addr2.address);
+            expect(ownerBalance).to.equal("20000000000000000000");
+        });
+        
+
+        it("Registration: should reverted if user is already registered", async () => {
+            await tradingFloor.connect(addr1)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                     value: ethers.utils.parseEther("20")
+                }
+            );
+        
+            await expect(
+                tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                ))
+            .to.be.revertedWith("User is already registered")
+        });
+
+        it("Registration: should reverted if second refer is not registered", async () => {
+            await expect(
+                tradingFloor.connect(addr1)
+                .registration(
+                    addr1.address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                ))
+            .to.be.revertedWith("User not registered")
+        });
+
+        it("Registration: should reverted if second refer is not registered", async () => {
+            await expect(
+                tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    addr2.address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                ))
+            .to.be.revertedWith("User not registered")
+        });
+
+        it("Registration: should emit 'UserIsRegistrated'", async () => {
+        await expect(
+            tradingFloor.connect(addr1)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                     value: ethers.utils.parseEther("20")
+                }
+            ))
+        .to.emit(tradingFloor, "UserIsRegistrated")
+            .withArgs(
+                addr1.address,
+                tradingFloor.address,
+                tradingFloor.address
+            )
+        });
 
         
         // it('Should deposit 500 tokens on owner address and 300 on addr1', async () => {

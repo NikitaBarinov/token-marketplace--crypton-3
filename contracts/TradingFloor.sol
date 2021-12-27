@@ -11,10 +11,11 @@ contract TradingFloor{
     uint256 public numOfRound = 0;
     uint256 private price;
     uint256 public totalSupplyACDM;
-   
+   // uint256 public totalAmountOfTokensLeftInThisRound;
+    uint256 decimal;
     struct refer{
-        address firstRefer;
-        address secondRefer;
+        address payable firstRefer;
+        address payable secondRefer;
     }
 
     mapping(address => uint256)  balancesETH;
@@ -24,8 +25,8 @@ contract TradingFloor{
     constructor(address _voteToken){
         token = ACDM(_voteToken);
         price = 0.00001 ether;
+        // totalSupplyACDM = balancesACDM[address(this)];
     }
-
 
 
     modifier userRegistered(address _user){
@@ -38,14 +39,30 @@ contract TradingFloor{
         _;
     }
 
+    function tradingFloorInit() external {
+        decimal = token.decimals();
+        token.mint(address(this), 1000 * 10 ** decimal);
+        token.approve(address(this), 1000 * 10 ** decimal);
+        balancesACDM[address(this)] = 1000 * 10 ** decimal;
+    }
+
+    function transferFromACDM(address _from, address _to, uint256 _amount) public returns(bool) {
+        token.approve(address(this), _amount);
+        balancesACDM[_from] -= _amount * 10 ** decimal;
+        balancesACDM[_to] += _amount * 10 ** decimal;
+        
+        
+        token.transferFrom(address(this), _to, _amount);
+        return true;
+    }
     
     /** @notice Register user in contract.
         * @param _firstRefer Address of first refer.
         * @param _secondRefer Address of second refer.
     */
     function registration(
-        address _firstRefer,
-        address _secondRefer
+        address payable _firstRefer,
+        address payable _secondRefer
     ) external
     payable 
     userNotRegistered(msg.sender)
@@ -54,13 +71,10 @@ contract TradingFloor{
     returns(bool _success){
         balancesETH[msg.sender] = msg.value;
         balancesACDM[msg.sender] = 0;
+            
+        refers[msg.sender].firstRefer = choiceRefers(_firstRefer);
+        refers[msg.sender].secondRefer = choiceRefers(_secondRefer);
         
-        refer memory newRefer;
-        
-        newRefer.firstRefer = choiceRefers(_firstRefer);
-        newRefer.secondRefer = choiceRefers(_secondRefer);
-        
-        refers[msg.sender] = newRefer;
         emit UserIsRegistrated(msg.sender, refers[msg.sender].firstRefer, refers[msg.sender].secondRefer);
     return true;
     }
@@ -69,47 +83,65 @@ contract TradingFloor{
       * @param _refer Address of refer.
       * @return address of new refer or contract address.
     */
-    function choiceRefers(address _refer)private view returns(address){
+    function choiceRefers(address payable _refer)private view returns(address payable){
         if(_refer != address(0)){
             return _refer;
         } else if(_refer == address(0)){
-            return address(this);
+            return payable(address(this));
         } 
     }
 
-    /** @notice Buy ACDM tokens for ETH.
+    // Sale round
+    /** @notice Buy ACDM tokens for ETH in Sale Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
     */
-    // commis
-    function buyACDMInSale(uint256 _amountACDM) public payable{
+    function buyACDMInSale(uint256 _amountACDM) external {
         uint256 priceForAmountACDM = priceForACDM(_amountACDM);
+        require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
+        require(balancesETH[msg.sender] >= priceForAmountACDM, "Insufficent funds");
+
+        balancesETH[address(this)] += priceForAmountACDM;
+        balancesETH[msg.sender] -= priceForAmountACDM;
+
+        balancesACDM[address(this)] -= _amountACDM * 10 ** decimal;
+        balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
+
+        transferFee(priceForAmountACDM, refers[msg.sender].firstRefer, 5);
+        transferFee(priceForAmountACDM, refers[msg.sender].secondRefer, 3);
         
-        require(balancesETH[msg.sender] > priceForAmountACDM, "Insufficent funds");
+        token.transferFrom(address(this), msg.sender, _amountACDM* 10 ** decimal );
         
-        balancesETH[msg.sender] = balancesETH[msg.sender] - priceForAmountACDM;
-        balancesETH[address(this)] +=  priceForAmountACDM;
-        balancesACDM[msg.sender] += _amountACDM;
-        
-        token.transferFrom(address(this), msg.sender, _amountACDM);
+        emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM, balancesACDM[address(this)]); 
     }
 
     /** @notice Calculate the total amount of ETH for ACDM.
         * @param _amountACDM Amount of tokens which the user wants to buy .
+        * @return _priceETH Total price for ACDM in ETH
     */
-    function priceForACDM(uint256 _amountACDM) private returns(uint256){
-        uint256 priceETH = (_amountACDM * (price * 10e6)) / 10e6;
-        return priceETH;
+    function priceForACDM(uint256 _amountACDM) private view returns(uint256){
+        return (_amountACDM * (price * 10e6)) / 10e6;
     } 
     
-
-    /** @notice Calculate the total amount of ETH for ACDM.
-        * @param _totalPrice Amount of tokens which the user wants to buy .
+    /** @notice Calculate and transfer fee to refer in ETH.
+        * @param _totalPrice Amount of tokens which the user wants to buy.
+        * @param _to Address of refer.
+        * @param _fee Percent of _totalPrice.
+   
     */
-    function fee(uint256 _totalPrice, address _user)private{
-        uint256 transactionFee = (_totalPrice * 1) / 100; 
-      
-            
+    function transferFee(uint256 _totalPrice, address payable _to, uint256 _fee)private{
+        uint256 feeOfRefer = (_totalPrice * _fee * 10e6) / 10e8;
+        
+        balancesETH[address(this)] -= feeOfRefer;
+        balancesETH[_to] += feeOfRefer;
+
+        emit FeeTransfered(_to, feeOfRefer);
     }
+
+    // function changeBalancesETH(address _from, address _to, uint256 _amount) private{
+    //     balancesETH[_from] -= _amount;
+    //     balancesETH[_to] += _amount;
+    //     emit BalancesChanged(_from, _to, _amount);
+    // }
 
 
 
@@ -145,6 +177,7 @@ contract TradingFloor{
       return balancesACDM[_userAddress];
     }
 
+
     /// @notice Getter for refers of address
     /// @return refers type
     function getRefer(address _user) external view returns(refer memory){
@@ -156,8 +189,20 @@ contract TradingFloor{
     function getTradingFloorAddress()external view returns(address){
         return address(this);
     }
+
     event UserIsRegistrated(address _user, address _firstRefer, address _secondRefer);
 
+    event FeeTransfered(address _to, uint256 _amount);
+    
+    event ACDMBought(
+        address buyer, 
+        uint256 _amountACDM, 
+        uint256 _PriceInETH, 
+        uint256 ACDMLeft
+    );
+
+    //event BalancesChanged(address _from, address _to, uint256 _amount);
+   
     event PriceChanged(uint256 _newPrice);
 }
 
