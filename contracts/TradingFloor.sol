@@ -6,18 +6,29 @@ import "./ACDM/ACDM.sol";
 /**@title pyramid contract */
 
 contract TradingFloor{
-    uint256 constant roundTime = 3 * 24 * 3600;
+    uint256 constant roundTime = 0;
     ACDM private token;
-    uint256 public numOfRound = 0;
+    uint256 public numOfRound;
     uint256 private price;
     uint256 public totalSupplyACDM;
    // uint256 public totalAmountOfTokensLeftInThisRound;
     uint256 decimal;
+
     struct refer{
         address payable firstRefer;
         address payable secondRefer;
     }
 
+    struct round{
+        uint256 totalSupply;
+        uint256 finishTime;
+        uint256 tradingVolumeETH;
+        bool saleOrTrade;//sale false trade true
+        
+    }
+
+
+    mapping(uint256 => round) rounds;
     mapping(address => uint256)  balancesETH;
     mapping(address => uint256)  balancesACDM;
     mapping(address => refer) refers;
@@ -25,6 +36,8 @@ contract TradingFloor{
     constructor(address _voteToken){
         token = ACDM(_voteToken);
         price = 0.00001 ether;
+        numOfRound = 0;
+        
         // totalSupplyACDM = balancesACDM[address(this)];
     }
 
@@ -41,19 +54,13 @@ contract TradingFloor{
 
     function tradingFloorInit() external {
         decimal = token.decimals();
-        token.mint(address(this), 1000 * 10 ** decimal);
-        token.approve(address(this), 1000 * 10 ** decimal);
-        balancesACDM[address(this)] = 1000 * 10 ** decimal;
-    }
-
-    function transferFromACDM(address _from, address _to, uint256 _amount) public returns(bool) {
-        token.approve(address(this), _amount);
-        balancesACDM[_from] -= _amount * 10 ** decimal;
-        balancesACDM[_to] += _amount * 10 ** decimal;
-        
-        
-        token.transferFrom(address(this), _to, _amount);
-        return true;
+        token.mint(address(this), 100000 * 10 ** decimal);
+        token.approve(address(this), 100000 * 10 ** decimal);
+        balancesACDM[address(this)] = 100000 * 10 ** decimal;
+        rounds[numOfRound].finishTime = block.timestamp + roundTime;
+        rounds[numOfRound].totalSupply = 100000 * 10 ** decimal;
+        rounds[numOfRound].tradingVolumeETH = 0;
+        rounds[numOfRound].saleOrTrade = false;
     }
     
     /** @notice Register user in contract.
@@ -91,17 +98,67 @@ contract TradingFloor{
         } 
     }
 
+    /** @notice Finish round and start new, if time to finish end or all tokens saled.
+    */
+    function finishRound() public {
+        require(
+            balancesACDM[address(this)] == 0 || 
+            rounds[numOfRound].finishTime <= block.timestamp,
+            "Round can not be closed");
+
+        token.burn(balancesACDM[address(this)]);
+        balancesACDM[address(this)] -= balancesACDM[address(this)];
+        changePrice();
+        uint256 totalSupplyForMint = ((rounds[numOfRound].tradingVolumeETH * 10e6) / (price * 10e6));
+        
+        token.mint(address(this), totalSupplyForMint);
+        token.approve(address(this), totalSupplyForMint);
+
+        balancesACDM[address(this)] = totalSupplyForMint;
+        
+        
+        numOfRound++;
+        startRound(totalSupplyForMint);
+
+    }
+
+    /** @notice Start new round.
+    * @param _totalSupply of tokens in new round.
+    */
+    function startRound(uint256 _totalSupply) private {
+        rounds[numOfRound].finishTime = block.timestamp + roundTime;
+        rounds[numOfRound].totalSupply = _totalSupply;
+        rounds[numOfRound].tradingVolumeETH = 0;
+
+        if (rounds[numOfRound - 1].saleOrTrade == true){
+            rounds[numOfRound].saleOrTrade = false;
+        } else if(rounds[numOfRound - 1].saleOrTrade == false){
+            rounds[numOfRound].saleOrTrade = true;
+        }
+
+        emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
+    }
+
+    /** @notice Calculate and set new price for next round.
+    */
+    function changePrice() private{
+        price = ((price * 103) / 100) + 0.000004 ether; 
+        emit PriceChanged(price);
+    }
+
     // Sale round
     /** @notice Buy ACDM tokens for ETH in Sale Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
     */
     function buyACDMInSale(uint256 _amountACDM) external {
-        uint256 priceForAmountACDM = priceForACDM(_amountACDM);
-        require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
+        uint256 priceForAmountACDM = (_amountACDM * (price * 10e6)) / 10e6;
+        require(rounds[numOfRound].saleOrTrade == false, "Not a sale round");
         require(balancesETH[msg.sender] >= priceForAmountACDM, "Insufficent funds");
-
+        require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
+   
         balancesETH[address(this)] += priceForAmountACDM;
         balancesETH[msg.sender] -= priceForAmountACDM;
+        rounds[numOfRound].tradingVolumeETH += priceForAmountACDM;
 
         balancesACDM[address(this)] -= _amountACDM * 10 ** decimal;
         balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
@@ -114,13 +171,13 @@ contract TradingFloor{
         emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM, balancesACDM[address(this)]); 
     }
 
-    /** @notice Calculate the total amount of ETH for ACDM.
-        * @param _amountACDM Amount of tokens which the user wants to buy .
-        * @return _priceETH Total price for ACDM in ETH
-    */
-    function priceForACDM(uint256 _amountACDM) private view returns(uint256){
-        return (_amountACDM * (price * 10e6)) / 10e6;
-    } 
+    // /** @notice Calculate the total amount of ETH for ACDM.
+    //     * @param _amountACDM Amount of tokens which the user wants to buy .
+    //     * @return _priceETH Total price for ACDM in ETH
+    // */
+    // function priceForACDM(uint256 _amountACDM) private view returns(uint256){
+    //     return (_amountACDM * (price * 10e6)) / 10e6;
+    // } 
     
     /** @notice Calculate and transfer fee to refer in ETH.
         * @param _totalPrice Amount of tokens which the user wants to buy.
@@ -136,22 +193,6 @@ contract TradingFloor{
 
         emit FeeTransfered(_to, feeOfRefer);
     }
-
-    // function changeBalancesETH(address _from, address _to, uint256 _amount) private{
-    //     balancesETH[_from] -= _amount;
-    //     balancesETH[_to] += _amount;
-    //     emit BalancesChanged(_from, _to, _amount);
-    // }
-
-
-
-    /** @notice Calculate and set new price for next round.
-        * @param _numOfRound Number of next round.
-    */
-    // function changePrice(uint256 _numOfRound) private{
-    //     price = ((price * 103) / 100) + 0.000004;
-    //     emit PriceChanged(price);
-    // }
 
     /// @notice Getter for price variable
     /// @return price type uint256
@@ -190,6 +231,12 @@ contract TradingFloor{
         return address(this);
     }
 
+    /** @notice Getter for mapping rounds
+    */
+    function getRound(uint256 _id)external view returns(round memory){
+        return rounds[_id];
+    }
+
     event UserIsRegistrated(address _user, address _firstRefer, address _secondRefer);
 
     event FeeTransfered(address _to, uint256 _amount);
@@ -201,10 +248,29 @@ contract TradingFloor{
         uint256 ACDMLeft
     );
 
+    event RoundStarted(bool _saleOrTrade, uint256 _totalSupply, uint256 _price);
     //event BalancesChanged(address _from, address _to, uint256 _amount);
    
     event PriceChanged(uint256 _newPrice);
 }
+
+
+ // function changeBalancesETH(address _from, address _to, uint256 _amount) private{
+    //     balancesETH[_from] -= _amount;
+    //     balancesETH[_to] += _amount;
+    //     emit BalancesChanged(_from, _to, _amount);
+    // }
+
+  // function transferFromACDM(address _from, address _to, uint256 _amount) public returns(bool) {
+    //     token.approve(address(this), _amount);
+    //     balancesACDM[_from] -= _amount * 10 ** decimal;
+    //     balancesACDM[_to] += _amount * 10 ** decimal;
+        
+        
+    //     token.transferFrom(address(this), _to, _amount);
+    //     return true;
+    // }
+
 
 
 // contract DAO{

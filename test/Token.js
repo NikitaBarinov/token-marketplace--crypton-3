@@ -228,54 +228,6 @@ describe('Token contract', () => {
             )
         });
 
-        it('buyACDMInSale: should buy 10 ACDM', async () => {
-            await tradingFloor.connect(addr1)
-                .registration(
-                    zero_address,
-                    zero_address,
-                    {
-                         value: ethers.utils.parseEther("20")
-                    }
-                );
-            console.log(Number(await tradingFloor.balanceOfETH(tradingFloor.address)));
-            console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
-            console.log("___________");
-            console.log(Number(await token.balanceOf(tradingFloor.address)));
-            console.log(Number(await token.balanceOf(addr1.address)));
-            console.log("___________");
-            console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
-            console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
-            console.log("___________");
-            
-            
-            //console.log(await tradingFloor.transferFromACDM(tradingFloor.address, addr1.address, ethers.utils.parseEther("20")));
-            
-            // console.log(Number(await token.balanceOf(addr1.address)));
-            // console.log("___________");
-            // console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
-            // console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
-            // console.log("___________"););
-            
-            await tradingFloor.connect(addr1).buyACDMInSale(100);
-
-            balanceOfTradingFloorInETH = Number(await tradingFloor.balanceOfETH(tradingFloor.address));
-            balanceOfAddr1InTradingFloorInETH = Number(await tradingFloor.balanceOfETH(addr1.address));
-            console.log("___________");
-            balanceOfTradingFloorInToken = Number(await token.balanceOf(tradingFloor.address));
-            balanceOfAddr1InToken = Number(await token.balanceOf(addr1.address));
-            console.log("___________");
-            balanceOfTradingFloorInACDM = Number(await tradingFloor.balanceOfACDM(tradingFloor.address));
-            balanceOfAddr1InACDM = Number(await tradingFloor.balanceOfACDM(addr1.address));
-            console.log("___________");
-        
-           
-        
-            expect(balanceOfTradingFloorInETH).to.equal("1000000000000000");
-            expect(balanceOfTradingFloorInETH).to.equal("19999000000000000000");
-            expect(balanceOfTradingFloorInToken).to.equal(balanceOfTradingFloorInACDM);
-            expect(balanceOfAddr1InToken).to.equal(balanceOfAddr1InACDM);
-        });
-
         it('Registration: should register user with first refers', async () => {
             await tradingFloor.connect(addr2)
                 .registration(
@@ -429,6 +381,150 @@ describe('Token contract', () => {
                 tradingFloor.address,
                 tradingFloor.address
             )
+        });
+
+        it('buyACDMInSale: should buy 100 ACDM', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+            // console.log(Number(await tradingFloor.balanceOfETH(tradingFloor.address)));
+            // console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
+            // console.log("___________");
+            // console.log(Number(await token.balanceOf(tradingFloor.address)));
+            // console.log(Number(await token.balanceOf(addr1.address)));
+            // console.log("___________");
+            // console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
+            // console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
+            // console.log("___________");
+            
+            await tradingFloor.connect(addr1).buyACDMInSale(100);
+
+            balanceOfTradingFloorInETH = Number(await tradingFloor.balanceOfETH(tradingFloor.address));
+            balanceOfAddr1InTradingFloorInETH = Number(await tradingFloor.balanceOfETH(addr1.address));
+            balanceOfTradingFloorInToken = Number(await token.balanceOf(tradingFloor.address));
+            balanceOfAddr1InToken = Number(await token.balanceOf(addr1.address));
+            balanceOfTradingFloorInACDM = Number(await tradingFloor.balanceOfACDM(tradingFloor.address));
+            balanceOfAddr1InACDM = Number(await tradingFloor.balanceOfACDM(addr1.address));
+        
+            expect(balanceOfTradingFloorInETH).to.equal(1000000000000000);
+            expect(balanceOfAddr1InTradingFloorInETH).to.equal(19999000000000000000);
+            expect(balanceOfTradingFloorInToken).to.equal(balanceOfTradingFloorInACDM);
+            expect(balanceOfAddr1InToken).to.equal(balanceOfAddr1InACDM);
+        });
+
+        it("buyACDMInSale: should reverted with 'Insufficent funds'", async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("0.005")
+                    }
+                );
+            
+           await expect(
+                tradingFloor.connect(addr1)
+                .buyACDMInSale(1000))
+            .to.be.revertedWith("Insufficent funds")
+        });
+
+        it("buyACDMInSale: should reverted with 'Insufficent tokens'", async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("250")
+                    }
+                );
+            
+            console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
+            console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
+              await expect(
+                tradingFloor.connect(addr1)
+                .buyACDMInSale(10000000))
+            .to.be.revertedWith("Insufficent tokens")
+        });
+
+
+        it("buyACDMInSale: should reverted with 'Not a sale round'", async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("25")
+                    }
+                );
+            await tradingFloor.connect(addr1).buyACDMInSale(100);
+            await tradingFloor.connect(addr1).finishRound();
+            
+                 await expect(
+                tradingFloor.connect(addr1)
+                .buyACDMInSale(100))
+            .to.be.revertedWith("Not a sale round")
+        });
+
+
+
+        it('finishRound: should finishRound', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            await tradingFloor.connect(addr1).buyACDMInSale(100);
+            await tradingFloor.connect(addr1).finishRound();
+
+            roundInfo = await tradingFloor.getRound(0);
+
+            roundTotalSupply = Number(roundInfo.totalSupply);
+            roundSaleOrTrade = roundInfo.saleOrTrade;
+            roundTradingVolume = Number(roundInfo.tradingVolumeETH);
+            
+            expect(roundTotalSupply).to.equal(1e23);
+            expect(roundSaleOrTrade).to.equal(false);
+            expect(roundTradingVolume).to.equal(1000000000000000);
+        });
+
+        it('finishRound: should start new round after finished', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+         //   console.log(Number(await tradingFloor.getPrice()));
+            await tradingFloor.connect(addr1).buyACDMInSale(100000);
+            await tradingFloor.connect(addr1).finishRound();
+
+            roundInfo = await tradingFloor.getRound(1);
+            roundInfo1 = await tradingFloor.getRound(0);
+
+          //  console.log(Number(await tradingFloor.getPrice()));
+          
+
+        
+            roundTotalSupply = Number(roundInfo.totalSupply);
+            roundSaleOrTrade = roundInfo.saleOrTrade;
+            roundTradingVolume = Number(roundInfo.tradingVolumeETH);
+            // console.log(roundTotalSupply);
+            // console.log(roundSaleOrTrade);
+            // console.log(roundTradingVolume);
+            expect(roundTotalSupply).to.equal(69930);
+            expect(roundSaleOrTrade).to.equal(true);
+            expect(roundTradingVolume).to.equal(0);
         });
 
         
