@@ -13,7 +13,8 @@ contract TradingFloor{
     uint256 public totalSupplyACDM;
    // uint256 public totalAmountOfTokensLeftInThisRound;
     uint256 decimal;
-
+    uint256 private idOrder = 0;
+    
     struct refer{
         address payable firstRefer;
         address payable secondRefer;
@@ -27,6 +28,17 @@ contract TradingFloor{
         
     }
 
+    struct order{
+        address _owner;
+        uint256 _balance;
+        uint256 _totalAmountACDM;
+        uint256 _totalPriceForACDM;
+        uint256 _totalAmountOfSales;
+    }
+
+
+
+    order[] orders;
 
     mapping(uint256 => round) rounds;
     mapping(address => uint256)  balancesETH;
@@ -37,8 +49,6 @@ contract TradingFloor{
         token = ACDM(_voteToken);
         price = 0.00001 ether;
         numOfRound = 0;
-        
-        // totalSupplyACDM = balancesACDM[address(this)];
     }
 
 
@@ -139,6 +149,52 @@ contract TradingFloor{
         emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
     }
 
+    //Trade round
+    function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) public{
+        require(balancesACDM[msg.sender] >= _amountACDM, "Insufficent tokens");
+        require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
+        //unlock
+        order memory newOrder;
+        
+        newOrder._owner = msg.sender;
+        newOrder._totalAmountACDM = _amountACDM;
+        newOrder._totalPriceForACDM = _totalPriceForACDM;
+        newOrder._balance = _amountACDM;
+        newOrder._totalAmountOfSales = 0;
+        orders.push(newOrder);
+       // orders[idOrder] = newOrder;
+
+        emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
+        idOrder++;
+    }
+
+    function buyOrder(uint256 _idOrder, uint256 _amountACDM) external payable{
+        require(_idOrder <= idOrder, "Order does not exist");
+        require(orders[_idOrder]._balance >= _amountACDM, "Insufficent tokens");
+        uint256 _price = (orders[_idOrder]._totalPriceForACDM * 10e6) / (orders[_idOrder]._totalAmountACDM * 10e6);
+        uint256 priceForAmountACDM = (_amountACDM * (_price * 10e6)) / 10e6;
+        require(priceForAmountACDM <= msg.value,"Insufficens funds");
+
+        balancesETH[orders[_idOrder]._owner] += priceForAmountACDM;
+        payable(msg.sender).transfer(msg.value - priceForAmountACDM);
+        
+        rounds[numOfRound].tradingVolumeETH += priceForAmountACDM;
+        orders[_idOrder]._totalAmountOfSales += priceForAmountACDM;
+        
+        balancesACDM[orders[_idOrder]._owner] -= _amountACDM * 10 ** decimal;
+        balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
+        
+        orders[_idOrder]._balance -= _amountACDM;
+
+        transferFee(priceForAmountACDM, refers[orders[_idOrder]._owner].firstRefer, 25);
+        transferFee(priceForAmountACDM, refers[orders[_idOrder]._owner].secondRefer, 25);
+        
+        token.transferFrom(orders[_idOrder]._owner, msg.sender, _amountACDM* 10 ** decimal );
+        
+        emit orderBought(orders[_idOrder]._owner, msg.sender, _amountACDM, priceForAmountACDM); 
+ 
+    }
+
     /** @notice Calculate and set new price for next round.
     */
     function changePrice() private{
@@ -152,10 +208,12 @@ contract TradingFloor{
     */
     function buyACDMInSale(uint256 _amountACDM) external {
         uint256 priceForAmountACDM = (_amountACDM * (price * 10e6)) / 10e6;
-        require(rounds[numOfRound].saleOrTrade == false, "Not a sale round");
-        require(balancesETH[msg.sender] >= priceForAmountACDM, "Insufficent funds");
         require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
-   
+      
+        require(rounds[numOfRound].saleOrTrade == false, "Not a sale round");
+       
+        require(balancesETH[msg.sender] >= priceForAmountACDM, "Insufficent funds");
+          
         balancesETH[address(this)] += priceForAmountACDM;
         balancesETH[msg.sender] -= priceForAmountACDM;
         rounds[numOfRound].tradingVolumeETH += priceForAmountACDM;
@@ -163,8 +221,8 @@ contract TradingFloor{
         balancesACDM[address(this)] -= _amountACDM * 10 ** decimal;
         balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
 
-        transferFee(priceForAmountACDM, refers[msg.sender].firstRefer, 5);
-        transferFee(priceForAmountACDM, refers[msg.sender].secondRefer, 3);
+        transferFee(priceForAmountACDM, refers[msg.sender].firstRefer, 50);
+        transferFee(priceForAmountACDM, refers[msg.sender].secondRefer, 30);
         
         token.transferFrom(address(this), msg.sender, _amountACDM* 10 ** decimal );
         
@@ -186,7 +244,7 @@ contract TradingFloor{
    
     */
     function transferFee(uint256 _totalPrice, address payable _to, uint256 _fee)private{
-        uint256 feeOfRefer = (_totalPrice * _fee * 10e6) / 10e8;
+        uint256 feeOfRefer = (_totalPrice * _fee * 10e5) / 10e8;
         
         balancesETH[address(this)] -= feeOfRefer;
         balancesETH[_to] += feeOfRefer;
@@ -237,6 +295,18 @@ contract TradingFloor{
         return rounds[_id];
     }
 
+    /** @notice Getter for orders array
+    */
+        function getOrder(uint256 _idOrder) external view returns(order memory){
+        return orders[_idOrder];
+    }
+
+    /** @notice Getter for id orders array
+    */
+    function getIdOrder() external view returns(uint256){
+        return idOrder;
+    }
+
     event UserIsRegistrated(address _user, address _firstRefer, address _secondRefer);
 
     event FeeTransfered(address _to, uint256 _amount);
@@ -250,7 +320,8 @@ contract TradingFloor{
 
     event RoundStarted(bool _saleOrTrade, uint256 _totalSupply, uint256 _price);
     //event BalancesChanged(address _from, address _to, uint256 _amount);
-   
+    event OrderCreated(address _owner, uint256 _amountACDM, uint256 _totalPriceForACDM, uint256 idOrder);
+    event orderBought(address _owner, address _buyer,uint256 _amountACDM, uint256 _priceForAmountACDM); 
     event PriceChanged(uint256 _newPrice);
 }
 
