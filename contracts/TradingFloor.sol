@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "./ACDM/ACDM.sol";
-
+import "@openzeppelin/contracts/access/Ownable.sol";
 /**@title pyramid contract */
 
-contract TradingFloor{
+contract TradingFloor is Ownable{
     uint256 constant roundTime = 0;
     ACDM private token;
     uint256 public numOfRound;
@@ -53,16 +53,11 @@ contract TradingFloor{
 
 
     modifier userRegistered(address _user){
-        require(refers[_user].firstRefer != address(0) || _user == address(0), "User not registered");
+        require(balancesETH[msg.sender] > 0, "User not registered");
         _;
     }
 
-    modifier userNotRegistered(address _user){
-        require(refers[_user].firstRefer == address(0), "User is already registered");
-        _;
-    }
-
-    function tradingFloorInit() external {
+    function tradingFloorInit() external onlyOwner{
         decimal = token.decimals();
         token.mint(address(this), 100000 * 10 ** decimal);
         token.approve(address(this), 100000 * 10 ** decimal);
@@ -84,10 +79,10 @@ contract TradingFloor{
         address payable _secondRefer
     ) external
     payable 
-    userNotRegistered(msg.sender)
     userRegistered(_firstRefer)
     userRegistered(_secondRefer)
     returns(bool _success){
+        require(balancesETH[msg.sender] == 0, "User already registered");
         balancesETH[msg.sender] = msg.value;
         balancesACDM[msg.sender] = 0;
             
@@ -101,7 +96,7 @@ contract TradingFloor{
     /** @notice Withdraw token to token address.
     * @param _amount Amount of withdrawing tokens.
     */
-    function withdraw(uint256 _amount) external {
+    function withdraw(uint256 _amount) external userRegistered(msg.sender){
         require(balancesETH[msg.sender] < _amount,"Insufficent funds");
         balancesETH[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
@@ -165,7 +160,8 @@ contract TradingFloor{
             emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
             
             return true;
-        }        
+        } 
+        return false;       
     }
 
     //Trade round
@@ -174,7 +170,7 @@ contract TradingFloor{
         * @param _totalPriceForACDM total price that sender want for all ACDM.
   
     */
-    function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) public{
+    function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) external userRegistered(msg.sender){
         require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
         require(balancesACDM[msg.sender] >= _amountACDM, "Insufficent tokens");
         require(unlockBalance[msg.sender] + _amountACDM < balancesACDM[msg.sender],"Balance locked" );
@@ -243,7 +239,7 @@ contract TradingFloor{
     /** @notice Buy ACDM tokens for ETH in Sale Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
     */
-    function buyACDMInSale(uint256 _amountACDM) external {
+    function buyACDMInSale(uint256 _amountACDM) external userRegistered(msg.sender){
         uint256 priceForAmountACDM = (_amountACDM * price * 10e5) / 10e5;
         require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
         require(rounds[numOfRound].saleOrTrade == false, "Not a sale round");
