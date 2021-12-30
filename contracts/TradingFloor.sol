@@ -13,7 +13,9 @@ contract TradingFloor{
     uint256 public totalSupplyACDM;
     uint256 decimal;
     uint256 private idOrder = 0;
-    
+    uint256 totalOrdersRound;
+    uint256 totalOrders;
+
     struct refer{
         address payable firstRefer;
         address payable secondRefer;
@@ -29,13 +31,16 @@ contract TradingFloor{
 
     struct order{
         address _owner;
+        uint256 _numRound;
         uint256 _balance;
         uint256 _totalAmountACDM;
         uint256 _totalPriceForACDM;
+        bool _open;
     }
 
     order[] orders;
     mapping(uint256 => round) rounds;
+    mapping(address => uint256) unlockBalance;
     mapping(address => uint256)  balancesETH;
     mapping(address => uint256)  balancesACDM;
     mapping(address => refer) refers;
@@ -66,6 +71,8 @@ contract TradingFloor{
         rounds[numOfRound].totalSupply = 100000 * 10 ** decimal;
         rounds[numOfRound].tradingVolumeETH = 0;
         rounds[numOfRound].saleOrTrade = false;
+        totalOrdersRound = 0;
+        totalOrders = 0;
     }
     
     /** @notice Register user in contract.
@@ -95,6 +102,7 @@ contract TradingFloor{
     * @param _amount Amount of withdrawing tokens.
     */
     function withdraw(uint256 _amount) external {
+        require(unlockBalance[msg.sender] + _amount < balancesACDM[msg.sender],"Balcance locked" );
         balancesETH[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
 
@@ -121,10 +129,11 @@ contract TradingFloor{
             balancesACDM[address(this)] == 0 || 
             rounds[numOfRound].finishTime <= block.timestamp,
             "Round can not be closed");
-
+        closeOrders();
         numOfRound++;
         startRound();
     }
+
 
     /** @notice Start new round.
     */
@@ -168,18 +177,29 @@ contract TradingFloor{
     function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) public{
         require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
         require(balancesACDM[msg.sender] >= _amountACDM, "Insufficent tokens");
-
+        
         order memory newOrder; 
         newOrder._owner = msg.sender;
         newOrder._totalAmountACDM = _amountACDM;
         newOrder._totalPriceForACDM = _totalPriceForACDM;
         newOrder._balance = _amountACDM;
+        newOrder._numRound = numOfRound;
+        newOrder._open = true;
+        totalOrdersRound ++;
         orders.push(newOrder);
 
         emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
         idOrder++;
     }
     
+    function closeOrders()private{
+        for(uint256 i=0;i < totalOrdersRound; i++){
+            orders[(totalOrders - totalOrdersRound) + i]._open = false;
+            unlockBalance[orders[(totalOrders - totalOrdersRound) + i]._owner] = 0;
+        }
+        totalOrdersRound = 0;
+    }
+
     /** @notice Buy ACDM tokens for ETH in trade Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
         * @param _idOrder id of buyable order.
@@ -191,6 +211,7 @@ contract TradingFloor{
         uint256 _price = (orders[_idOrder]._totalPriceForACDM * 10e6) / (orders[_idOrder]._totalAmountACDM * 10e6);
         uint256 priceForAmountACDM = (_amountACDM * (_price * 10e6)) / 10e6;
         require(priceForAmountACDM <= msg.value,"Insufficens funds");
+        require(orders[idOrder]._open == true,"Order closed");
 
         balancesETH[orders[_idOrder]._owner] += priceForAmountACDM;
         payable(msg.sender).transfer(msg.value - priceForAmountACDM);
