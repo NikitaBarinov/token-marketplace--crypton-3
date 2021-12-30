@@ -392,15 +392,6 @@ describe('Token contract', () => {
                          value: ethers.utils.parseEther("20")
                     }
                 );
-            // console.log(Number(await tradingFloor.balanceOfETH(tradingFloor.address)));
-            // console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
-            // console.log("___________");
-            // console.log(Number(await token.balanceOf(tradingFloor.address)));
-            // console.log(Number(await token.balanceOf(addr1.address)));
-            // console.log("___________");
-            // console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
-            // console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
-            // console.log("___________");
             
             await tradingFloor.connect(addr1).buyACDMInSale(100);
 
@@ -433,26 +424,6 @@ describe('Token contract', () => {
             .to.be.revertedWith("Insufficent funds")
         });
 
-        it("buyACDMInSale: should reverted with 'Insufficent tokens'", async () => {
-            await tradingFloor.connect(addr1)
-                .registration(
-                    zero_address,
-                    zero_address,
-                    {
-                         value: ethers.utils.parseEther("989")
-                    }
-                );
-            //    await tradingFloor.connect(addr1).buyACDMInSale( ethers.utils.parseEther("1000"));
-         
-            console.log(Number(await tradingFloor.balanceOfACDM(tradingFloor.address)));
-            console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
-              await expect(
-                tradingFloor.connect(addr1)
-                .buyACDMInSale(ethers.utils.parseEther("1")))
-            .to.be.revertedWith("Insufficent tokens")
-        });
-
-
         it("buyACDMInSale: should reverted with 'Not a sale round'", async () => {
             await tradingFloor.connect(addr1)
                 .registration(
@@ -469,6 +440,47 @@ describe('Token contract', () => {
                 tradingFloor.connect(addr1)
                 .buyACDMInSale(100))
             .to.be.revertedWith("Not a sale round")
+        });
+        
+        it("buyACDMInSale: should emit 'ACDMBought'", async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("25")
+                    }
+                );
+            
+                await expect(
+                    tradingFloor.connect(addr1)
+                    .buyACDMInSale(100))
+                .to.emit(tradingFloor, "ACDMBought");
+                    
+        });
+
+        it('finishRound: should finishRound', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+
+            await tradingFloor.connect(addr1).buyACDMInSale(100);
+            await tradingFloor.connect(addr1).finishRound();
+
+            roundInfo = await tradingFloor.getRound(0);
+
+            roundTotalSupply = Number(roundInfo.totalSupply);
+            roundSaleOrTrade = roundInfo.saleOrTrade;
+            roundTradingVolume = Number(roundInfo.tradingVolumeETH);
+            
+            expect(roundTotalSupply).to.equal(1e23);
+            expect(roundSaleOrTrade).to.equal(false);
+            expect(roundTradingVolume).to.equal(1000000000000000);
         });
 
         it('finishRound: should finishRound', async () => {
@@ -504,32 +516,41 @@ describe('Token contract', () => {
                          value: ethers.utils.parseEther("20")
                     }
                 );
-         //   console.log(Number(await tradingFloor.getPrice()));
             await tradingFloor.connect(addr1).buyACDMInSale(100000);
             await tradingFloor.connect(addr1).finishRound();
 
             roundInfo = await tradingFloor.getRound(1);
             roundInfo1 = await tradingFloor.getRound(0);
 
-          //  console.log(Number(await tradingFloor.getPrice()));
-          
-
-        
             roundTotalSupply = Number(roundInfo.totalSupply);
             roundSaleOrTrade = roundInfo.saleOrTrade;
             roundTradingVolume = Number(roundInfo.tradingVolumeETH);
-            // console.log(roundTotalSupply);
-            // console.log(roundSaleOrTrade);
-            // console.log(roundTradingVolume);
-            expect(roundTotalSupply).to.equal(69930);
+         
+            expect(roundTotalSupply).to.equal(0);
             expect(roundSaleOrTrade).to.equal(true);
             expect(roundTradingVolume).to.equal(0);
         });
-
-            //Trade round
-  
-
-    it('addOrder: should add ew order', async () => {
+          
+        it('finishRound: should emit "RoundStarted"', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                         value: ethers.utils.parseEther("20")
+                    }
+                );
+      
+            await tradingFloor.connect(addr1).buyACDMInSale(100000);
+         
+            await expect(
+                tradingFloor.connect(addr1)
+                .finishRound())
+            .to.emit(tradingFloor, "RoundStarted");
+        });  
+        
+        //Trade round
+    it('addOrder: should add new order', async () => {
         await tradingFloor.connect(addr1)
             .registration(
                 zero_address,
@@ -549,14 +570,49 @@ describe('Token contract', () => {
         orderowner = orderInfo._owner;
         orderTotalAmountACDM = Number(orderInfo._totalAmountACDM);
         ordertotalPriceForACDM = Number(orderInfo._totalPriceForACDM);
-        ordertotalAmountOfSales = Number(orderInfo._totalAmountOfSales);
-        
+         
         expect(orderowner).to.equal(addr1.address);
         expect(orderTotalAmountACDM).to.equal(3);
         expect(ordertotalPriceForACDM ).to.equal(1);
-        expect(ordertotalAmountOfSales ).to.equal(0);
+        
     });
 
+    it('addOrder: should be reverted with"Insufficent tokens"', async () => {
+        await tradingFloor.connect(addr1)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                     value: ethers.utils.parseEther("20")
+                }
+            );
+        
+            await tradingFloor.connect(addr1).buyACDMInSale(1);
+        await tradingFloor.connect(addr1).finishRound();
+        await expect(
+            tradingFloor.connect(addr1)
+            .addOrder(1, ethers.utils.parseEther("20")))
+        .to.be.revertedWith("Insufficent tokens")
+    });
+
+    it('addOrder: should be reverted with"Not a trade round"', async () => {
+        await tradingFloor.connect(addr1)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                     value: ethers.utils.parseEther("20")
+                }
+            );
+
+        
+        await expect(
+            tradingFloor.connect(addr1)
+            .addOrder(1, 3))
+        .to.be.revertedWith("Not a trade round")
+    });
+   
+    
     it('buyOrder: should buy order', async () => {
         await tradingFloor.connect(addr1)
             .registration(
@@ -574,105 +630,111 @@ describe('Token contract', () => {
                         value: ethers.utils.parseEther("20")
                 }
             );
-     
+
         await tradingFloor.connect(addr1).buyACDMInSale(100000);
         await tradingFloor.connect(addr1).finishRound();
-  
-        await tradingFloor.connect(addr1).addOrder(1, 3);
+        await tradingFloor.connect(addr1).addOrder(1, 30);
   
         orderInfo = await tradingFloor.getOrder(0);
-        console.log("addr1");
-        console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
-        console.log("___________");
-        console.log(Number(await token.balanceOf(addr1.address)));
-        console.log("___________");
-        console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
-        console.log("___________");
-        console.log("addr2");
-        console.log(Number(await tradingFloor.balanceOfETH(addr2.address)));
-        console.log("___________");
-        console.log(Number(await token.balanceOf(addr2.address)));
-        console.log("___________");
-        console.log(Number(await tradingFloor.balanceOfACDM(addr2.address)));
-        console.log("___________");
-        orderowner = orderInfo._owner;
-        ordertotalAmountOfSales = Number(orderInfo._totalAmountOfSales);
+        // console.log("addr1");
+        // console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
+        // console.log("___________");
+        // console.log(Number(await token.balanceOf(addr1.address)));
+        // console.log("___________");
+        // console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
+        // console.log("___________");
+        // console.log("баланс на аккаунте",Number(await ethers.provider.getBalance(addr1.address)));
+        // console.log("addr2");
+        // console.log(Number(await tradingFloor.balanceOfETH(addr2.address)));
+        // console.log("___________");
+        // console.log(Number(await token.balanceOf(addr2.address)));
+        // console.log("___________");
+        // console.log(Number(await tradingFloor.balanceOfACDM(addr2.address)));
+        // console.log("___________");
+        // console.log("баланс на аккаунте",Number(await ethers.provider.getBalance(addr2.address)));
+        
         token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
         token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
         
-        console.log(Number(orderInfo._balance));
-
         balanceOfAddr1InTradingFloorInETH = Number(await tradingFloor.balanceOfETH(addr1.address));
         balanceOfAddr1InToken = Number(await token.balanceOf(addr1.address));
         balanceOfAddr1InACDM = Number(await tradingFloor.balanceOfACDM(addr1.address));
         
-        console.log("2 addr1");
-        console.log(Number(await tradingFloor.balanceOfETH(addr1.address)));
-        console.log("___________");
-        console.log(Number(await token.balanceOf(addr1.address)));
-        console.log("___________");
-        console.log(Number(await tradingFloor.balanceOfACDM(addr1.address)));
-        console.log("___________");
-        console.log("addr2");
-        console.log(Number(await tradingFloor.balanceOfETH(addr2.address)));
-        console.log("___________");
-        console.log(Number(await token.balanceOf(addr2.address)));
-        console.log("___________");
-        console.log(Number(await tradingFloor.balanceOfACDM(addr2.address)));
-        console.log("___________");
-            
-        await tradingFloor.connect(addr1).buyOrder(0, 2,{
-            value: ethers.utils.parseEther("20")
+        await tradingFloor.connect(addr2).buyOrder(0, 20,{
+            value: ethers.utils.parseEther("0.5")
        });
-        // expect(orderowner).to.equal(addr1.address);
-        // expect(orderTotalAmountACDM).to.equal(3);
-        // expect(ordertotalPriceForACDM ).to.equal(1);
+
         orderInfo = await tradingFloor.getOrder(0);
-        console.log(Number(orderInfo._balance));
-        expect(ordertotalAmountOfSales ).to.equal(0);
+        expect(Number(await tradingFloor.balanceOfACDM(addr1.address)) ).to.equal(Number(await token.balanceOf(addr1.address)));
+        expect(Number(await tradingFloor.balanceOfACDM(addr1.address)) ).to.equal(Number(9.998e+22));
+        expect(Number(await tradingFloor.balanceOfACDM(addr2.address)) ).to.equal(Number(await token.balanceOf(addr2.address)));
+        expect(Number(await tradingFloor.balanceOfACDM(addr2.address)) ).to.equal(20000000000000000000);
     });
 
-        // it('Should deposit 500 tokens on owner address and 300 on addr1', async () => {
-        //     await token.connect(owner).transfer(addr1.address, 305);
+    it('buyOrder: should revert with "Insufficens tokens"', async () => {
+        await tradingFloor.connect(addr1)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                     value: ethers.utils.parseEther("20")
+                }
+            );
+        await tradingFloor.connect(addr2)
+            .registration(
+                zero_address,
+                zero_address,
+                {
+                        value: ethers.utils.parseEther("20")
+                }
+            );
 
-        //     await dao.connect(owner).deposit(500);
-        //     await dao.connect(addr1).deposit(300);
+        await tradingFloor.connect(addr1).buyACDMInSale(100000);
+        await tradingFloor.connect(addr1).finishRound();  
+        await tradingFloor.connect(addr1).addOrder(1, 30);
+
+        token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+        token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));    
             
-        //     const ownerBalance = await dao.balanceOf(owner.address);
-        //     const addr1Balance = await dao.balanceOf(addr1.address);
-            
-        //     expect(ownerBalance).to.equal("500");
-        //     expect(addr1Balance).to.equal("300");
-        // });
+        await expect(
+            tradingFloor.connect(addr1)
+            .buyOrder(0, 40,{
+                value: ethers.utils.parseEther("0.5")
+           }))
+        .to.be.revertedWith('Insufficent tokens')
+    });
+    it('buyOrder: should revert with "Insufficens tokens"', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                        value: ethers.utils.parseEther("20")
+                    }
+                );
+            await tradingFloor.connect(addr2)
+                .registration(
+                    zero_address,
+                    zero_address,
+                    {
+                            value: ethers.utils.parseEther("20")
+                    }
+                );
+                
+            await tradingFloor.connect(addr1).buyACDMInSale(100000);
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
 
-        
-
-        // it("Add proposal: should reverted if not token holder", async () => {
-        //  await expect(
-        //     dao.connect(owner).
-        //         addProposal(
-        //             token.address,
-        //             "test proposal",
-        //             TransactonByteCode))
-        //     .to.be.revertedWith("Insufficens funds")
-        // });
-
-        // it("Add proposal: should emit 'ProposalCreated'", async () => {
-        //     await dao.connect(owner).deposit(500);
-        //     await expect(
-        //        dao.connect(owner).
-        //            addProposal(
-        //                token.address,
-        //                "test proposal",
-        //                TransactonByteCode))
-        //     .to.emit(dao, "ProposalCreated")
-        //        .withArgs(
-        //             token.address,
-        //             TransactonByteCode,
-        //             "test proposal",
-        //             (Number(await dao.getBlockTimeStamp())) + Number(await dao.debatingPeriod())
-        //        )
-        //    });
+            token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));    
+                
+            await expect(
+                tradingFloor.connect(addr1)
+                .buyOrder(0, 20,{
+                    value: ethers.utils.parseEther("0.5")
+            }))
+            .to.emit(tradingFloor, "OrderBought")
+        });
     });
 });
 

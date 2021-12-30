@@ -23,21 +23,13 @@ export type OrderStruct = {
   _balance: BigNumberish;
   _totalAmountACDM: BigNumberish;
   _totalPriceForACDM: BigNumberish;
-  _totalAmountOfSales: BigNumberish;
 };
 
-export type OrderStructOutput = [
-  string,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber
-] & {
+export type OrderStructOutput = [string, BigNumber, BigNumber, BigNumber] & {
   _owner: string;
   _balance: BigNumber;
   _totalAmountACDM: BigNumber;
   _totalPriceForACDM: BigNumber;
-  _totalAmountOfSales: BigNumber;
 };
 
 export type ReferStruct = { firstRefer: string; secondRefer: string };
@@ -76,10 +68,13 @@ export interface TradingFloorInterface extends utils.Interface {
     "getRefer(address)": FunctionFragment;
     "getRound(uint256)": FunctionFragment;
     "getTradingFloorAddress()": FunctionFragment;
+    "getUnlockBalance(address)": FunctionFragment;
     "numOfRound()": FunctionFragment;
     "registration(address,address)": FunctionFragment;
     "totalSupplyACDM()": FunctionFragment;
     "tradingFloorInit()": FunctionFragment;
+    "unlockBalance(address)": FunctionFragment;
+    "withdraw(uint256)": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -129,6 +124,10 @@ export interface TradingFloorInterface extends utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "getUnlockBalance",
+    values: [string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "numOfRound",
     values?: undefined
   ): string;
@@ -143,6 +142,14 @@ export interface TradingFloorInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "tradingFloorInit",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "unlockBalance",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "withdraw",
+    values: [BigNumberish]
   ): string;
 
   decodeFunctionResult(functionFragment: "addOrder", data: BytesLike): Result;
@@ -176,6 +183,10 @@ export interface TradingFloorInterface extends utils.Interface {
     functionFragment: "getTradingFloorAddress",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "getUnlockBalance",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "numOfRound", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "registration",
@@ -189,24 +200,31 @@ export interface TradingFloorInterface extends utils.Interface {
     functionFragment: "tradingFloorInit",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "unlockBalance",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
 
   events: {
     "ACDMBought(address,uint256,uint256,uint256)": EventFragment;
     "FeeTransfered(address,uint256)": EventFragment;
+    "OrderBought(address,address,uint256,uint256)": EventFragment;
     "OrderCreated(address,uint256,uint256,uint256)": EventFragment;
     "PriceChanged(uint256)": EventFragment;
     "RoundStarted(bool,uint256,uint256)": EventFragment;
     "UserIsRegistrated(address,address,address)": EventFragment;
-    "orderBought(address,address,uint256,uint256)": EventFragment;
+    "Withdraw(address,uint256)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "ACDMBought"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "FeeTransfered"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OrderBought"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OrderCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "PriceChanged"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoundStarted"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "UserIsRegistrated"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "orderBought"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Withdraw"): EventFragment;
 }
 
 export type ACDMBoughtEvent = TypedEvent<
@@ -227,6 +245,18 @@ export type FeeTransferedEvent = TypedEvent<
 >;
 
 export type FeeTransferedEventFilter = TypedEventFilter<FeeTransferedEvent>;
+
+export type OrderBoughtEvent = TypedEvent<
+  [string, string, BigNumber, BigNumber],
+  {
+    _owner: string;
+    _buyer: string;
+    _amountACDM: BigNumber;
+    _priceForAmountACDM: BigNumber;
+  }
+>;
+
+export type OrderBoughtEventFilter = TypedEventFilter<OrderBoughtEvent>;
 
 export type OrderCreatedEvent = TypedEvent<
   [string, BigNumber, BigNumber, BigNumber],
@@ -262,17 +292,12 @@ export type UserIsRegistratedEvent = TypedEvent<
 export type UserIsRegistratedEventFilter =
   TypedEventFilter<UserIsRegistratedEvent>;
 
-export type orderBoughtEvent = TypedEvent<
-  [string, string, BigNumber, BigNumber],
-  {
-    _owner: string;
-    _buyer: string;
-    _amountACDM: BigNumber;
-    _priceForAmountACDM: BigNumber;
-  }
+export type WithdrawEvent = TypedEvent<
+  [string, BigNumber],
+  { _to: string; _amount: BigNumber }
 >;
 
-export type orderBoughtEventFilter = TypedEventFilter<orderBoughtEvent>;
+export type WithdrawEventFilter = TypedEventFilter<WithdrawEvent>;
 
 export interface TradingFloor extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
@@ -355,6 +380,11 @@ export interface TradingFloor extends BaseContract {
 
     getTradingFloorAddress(overrides?: CallOverrides): Promise<[string]>;
 
+    getUnlockBalance(
+      _owner: string,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
+
     numOfRound(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     registration(
@@ -366,6 +396,16 @@ export interface TradingFloor extends BaseContract {
     totalSupplyACDM(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     tradingFloorInit(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    unlockBalance(
+      arg0: string,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
+
+    withdraw(
+      _amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
   };
@@ -424,6 +464,11 @@ export interface TradingFloor extends BaseContract {
 
   getTradingFloorAddress(overrides?: CallOverrides): Promise<string>;
 
+  getUnlockBalance(
+    _owner: string,
+    overrides?: CallOverrides
+  ): Promise<BigNumber>;
+
   numOfRound(overrides?: CallOverrides): Promise<BigNumber>;
 
   registration(
@@ -435,6 +480,13 @@ export interface TradingFloor extends BaseContract {
   totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
 
   tradingFloorInit(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  unlockBalance(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
+
+  withdraw(
+    _amount: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -491,6 +543,11 @@ export interface TradingFloor extends BaseContract {
 
     getTradingFloorAddress(overrides?: CallOverrides): Promise<string>;
 
+    getUnlockBalance(
+      _owner: string,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     numOfRound(overrides?: CallOverrides): Promise<BigNumber>;
 
     registration(
@@ -502,39 +559,59 @@ export interface TradingFloor extends BaseContract {
     totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
 
     tradingFloorInit(overrides?: CallOverrides): Promise<void>;
+
+    unlockBalance(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
+
+    withdraw(_amount: BigNumberish, overrides?: CallOverrides): Promise<void>;
   };
 
   filters: {
     "ACDMBought(address,uint256,uint256,uint256)"(
-      buyer?: null,
+      buyer?: string | null,
       _amountACDM?: null,
       _PriceInETH?: null,
       ACDMLeft?: null
     ): ACDMBoughtEventFilter;
     ACDMBought(
-      buyer?: null,
+      buyer?: string | null,
       _amountACDM?: null,
       _PriceInETH?: null,
       ACDMLeft?: null
     ): ACDMBoughtEventFilter;
 
     "FeeTransfered(address,uint256)"(
-      _to?: null,
+      _to?: string | null,
       _amount?: null
     ): FeeTransferedEventFilter;
-    FeeTransfered(_to?: null, _amount?: null): FeeTransferedEventFilter;
+    FeeTransfered(
+      _to?: string | null,
+      _amount?: null
+    ): FeeTransferedEventFilter;
+
+    "OrderBought(address,address,uint256,uint256)"(
+      _owner?: string | null,
+      _buyer?: string | null,
+      _amountACDM?: null,
+      _priceForAmountACDM?: null
+    ): OrderBoughtEventFilter;
+    OrderBought(
+      _owner?: string | null,
+      _buyer?: string | null,
+      _amountACDM?: null,
+      _priceForAmountACDM?: null
+    ): OrderBoughtEventFilter;
 
     "OrderCreated(address,uint256,uint256,uint256)"(
-      _owner?: null,
+      _owner?: string | null,
       _amountACDM?: null,
       _totalPriceForACDM?: null,
-      idOrder?: null
+      idOrder?: BigNumberish | null
     ): OrderCreatedEventFilter;
     OrderCreated(
-      _owner?: null,
+      _owner?: string | null,
       _amountACDM?: null,
       _totalPriceForACDM?: null,
-      idOrder?: null
+      idOrder?: BigNumberish | null
     ): OrderCreatedEventFilter;
 
     "PriceChanged(uint256)"(_newPrice?: null): PriceChangedEventFilter;
@@ -552,28 +629,21 @@ export interface TradingFloor extends BaseContract {
     ): RoundStartedEventFilter;
 
     "UserIsRegistrated(address,address,address)"(
-      _user?: null,
-      _firstRefer?: null,
-      _secondRefer?: null
+      _user?: string | null,
+      _firstRefer?: string | null,
+      _secondRefer?: string | null
     ): UserIsRegistratedEventFilter;
     UserIsRegistrated(
-      _user?: null,
-      _firstRefer?: null,
-      _secondRefer?: null
+      _user?: string | null,
+      _firstRefer?: string | null,
+      _secondRefer?: string | null
     ): UserIsRegistratedEventFilter;
 
-    "orderBought(address,address,uint256,uint256)"(
-      _owner?: null,
-      _buyer?: null,
-      _amountACDM?: null,
-      _priceForAmountACDM?: null
-    ): orderBoughtEventFilter;
-    orderBought(
-      _owner?: null,
-      _buyer?: null,
-      _amountACDM?: null,
-      _priceForAmountACDM?: null
-    ): orderBoughtEventFilter;
+    "Withdraw(address,uint256)"(
+      _to?: string | null,
+      _amount?: null
+    ): WithdrawEventFilter;
+    Withdraw(_to?: string | null, _amount?: null): WithdrawEventFilter;
   };
 
   estimateGas: {
@@ -625,6 +695,11 @@ export interface TradingFloor extends BaseContract {
 
     getTradingFloorAddress(overrides?: CallOverrides): Promise<BigNumber>;
 
+    getUnlockBalance(
+      _owner: string,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     numOfRound(overrides?: CallOverrides): Promise<BigNumber>;
 
     registration(
@@ -636,6 +711,13 @@ export interface TradingFloor extends BaseContract {
     totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
 
     tradingFloorInit(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    unlockBalance(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
+
+    withdraw(
+      _amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
   };
@@ -697,6 +779,11 @@ export interface TradingFloor extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    getUnlockBalance(
+      _owner: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     numOfRound(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     registration(
@@ -708,6 +795,16 @@ export interface TradingFloor extends BaseContract {
     totalSupplyACDM(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     tradingFloorInit(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    unlockBalance(
+      arg0: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    withdraw(
+      _amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
   };
