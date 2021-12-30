@@ -102,7 +102,7 @@ contract TradingFloor{
     * @param _amount Amount of withdrawing tokens.
     */
     function withdraw(uint256 _amount) external {
-        require(unlockBalance[msg.sender] + _amount < balancesACDM[msg.sender],"Balcance locked" );
+        require(balancesETH[msg.sender] < _amount,"Insufficent funds");
         balancesETH[msg.sender] -= _amount;
         payable(msg.sender).transfer(_amount);
 
@@ -177,7 +177,8 @@ contract TradingFloor{
     function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) public{
         require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
         require(balancesACDM[msg.sender] >= _amountACDM, "Insufficent tokens");
-        
+        require(unlockBalance[msg.sender] + _amountACDM < balancesACDM[msg.sender],"Balance locked" );
+      
         order memory newOrder; 
         newOrder._owner = msg.sender;
         newOrder._totalAmountACDM = _amountACDM;
@@ -187,7 +188,7 @@ contract TradingFloor{
         newOrder._open = true;
         totalOrdersRound ++;
         orders.push(newOrder);
-
+        unlockBalance[msg.sender] = _amountACDM;
         emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
         idOrder++;
     }
