@@ -1,4 +1,3 @@
-const Web3 = require('web3');
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
@@ -55,7 +54,7 @@ describe('Token contract', () => {
 
             const addr1Refers = await tradingFloor.getRefer(addr1.address);
         
-            expect(addr1Refers).to.equal(tradingFloor.address);
+            expect(addr1Refers).to.equal(zero_address);
             });
 
         it('Registration: should register user with refer', async () => {
@@ -142,6 +141,10 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100,{
                 value: ethers.utils.parseEther("25")
             });
+
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
+
             await tradingFloor.connect(addr1).finishRound();
 
             roundInfo = await tradingFloor.getRound(0);

@@ -10,8 +10,6 @@ import "@nomiclabs/hardhat-etherscan";
 import 'solidity-coverage';
 import "./tasks/Token/index.ts";
 import "./tasks/index.ts";
-require("web3");
-
 
 //define chainIds for networks 
 const chainIds = {

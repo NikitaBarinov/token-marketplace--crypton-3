@@ -100,10 +100,10 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     returns(bool _success){
         require(_refer != msg.sender, "Can not be self-referer");
             
-        refers[msg.sender] = choiceRefers(_refer);
+        refers[msg.sender] = _refer;
         
         emit UserIsRegistrated(msg.sender, refers[msg.sender]);
-    return true;
+        return true;
     }
 
     /** @notice Withdraw token from token address.
@@ -113,18 +113,6 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         sendEther(_to, _amount);
     
         emit Withdraw(msg.sender, _amount);
-    }
-
-    /** @notice If refer address(0) return address of contract if not return refer.
-      * @param _refer Address of refer.
-      * @return address of new refer or contract address.
-    */
-    function choiceRefers(address _refer)private view returns(address){
-        if(_refer != address(0)){
-            return _refer;
-        } else if(_refer == address(0)){
-            return address(this);
-        } 
     }
 
     /** @notice Finish round and start new, if time to finish end or all tokens saled.
@@ -197,7 +185,8 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     /** @notice Close all orders opened in round.  
     */
     function closeOrders()private{
-        for(uint256 i=0;i < totalOrdersRound; i++){
+        uint256 lenght = totalOrdersRound;
+        for(uint256 i=0;i < lenght; i++){
             orders[numOfRound][(totalOrders - totalOrdersRound) + i].open = false;
         }
         totalOrdersRound = 0;
@@ -241,7 +230,6 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     /** @notice Calculate and set new price for next round.
     */
     function changePrice() private{
-        
         price = ((price * 1030000) / 1000000) + 0.000004 ether; 
         
         emit PriceChanged(price);
@@ -261,7 +249,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         transferFee(priceForAmountACDM, refers[msg.sender], 50);
         transferFee(priceForAmountACDM, refers[refers[msg.sender]], 30);
         
-       IERC20(token).safeTransferFrom(address(this), msg.sender, _amountACDM);
+        IERC20(token).safeTransferFrom(address(this), msg.sender, _amountACDM);
         
         emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM); 
     }
@@ -273,10 +261,13 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
    
     */
     function transferFee(uint256 _totalPrice, address _to, uint256 _fee)private{
-        uint256 feeOfRefer = (_totalPrice * _fee * 10e5) / 10e8;
-        sendEther(_to, feeOfRefer);
-
-        emit FeeTransfered(_to, feeOfRefer);
+        address _send;
+        _send = _to;
+        if(_to != address(0)){
+            uint256 feeOfRefer = (_totalPrice * _fee * 10e5) / 10e8;
+            sendEther(_send, feeOfRefer);
+            emit FeeTransfered(_to, feeOfRefer);
+        } 
     }
 
     /** @notice Sends `amount` of ether to `account`.
