@@ -3,6 +3,7 @@
 /* eslint-disable */
 export type { AccessControl } from "./AccessControl";
 export type { IAccessControl } from "./IAccessControl";
+export type { Ownable } from "./Ownable";
 export type { Pausable } from "./Pausable";
 export type { ERC20 } from "./ERC20";
 export type { ERC20Burnable } from "./ERC20Burnable";
@@ -15,6 +16,7 @@ export type { TradingFloor } from "./TradingFloor";
 
 export { AccessControl__factory } from "./factories/AccessControl__factory";
 export { IAccessControl__factory } from "./factories/IAccessControl__factory";
+export { Ownable__factory } from "./factories/Ownable__factory";
 export { Pausable__factory } from "./factories/Pausable__factory";
 export { ERC20__factory } from "./factories/ERC20__factory";
 export { ERC20Burnable__factory } from "./factories/ERC20Burnable__factory";

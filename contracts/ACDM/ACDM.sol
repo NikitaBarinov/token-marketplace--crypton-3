@@ -43,4 +43,8 @@ contract ACDM is ERC20, ERC20Burnable, Pausable, AccessControl {
     {
         super._beforeTokenTransfer(from, to, amount);
     }
+    
+    function burn(address from, uint256 amount) external onlyRole(BURNER_ROLE) {
+        _burn(from, amount);
+    }
 }

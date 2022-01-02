@@ -3,9 +3,13 @@ pragma solidity ^0.8.0;
 
 import "./ACDM/ACDM.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 /**@title pyramid contract */
 
-contract TradingFloor is Ownable{
+contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
+    using SafeERC20 for IERC20;
     uint256 constant roundTime = 0;
     ACDM private token;
     uint256 public numOfRound;
@@ -16,34 +20,39 @@ contract TradingFloor is Ownable{
     uint256 totalOrdersRound;
     uint256 totalOrders;
 
-    struct refer{
-        address payable firstRefer;
-        address payable secondRefer;
-    }
+    event UserIsRegistrated(address indexed _user, address indexed _refer);
+    event FeeTransfered(address indexed _to, uint256 _amount);
+    event ACDMBought(
+        address indexed buyer, 
+        uint256 _amountACDM, 
+        uint256 _PriceInETH
+    );
+    event RoundStarted(bool _saleOrTrade, uint256 _totalSupply, uint256 _price);
+    event OrderCreated(address indexed _owner, uint256 _amountACDM, uint256 _totalPriceForACDM, uint256 indexed idOrder);
+    event OrderBought(address indexed _owner, address indexed _buyer,uint256 _amountACDM, uint256 _priceForAmountACDM); 
+    event PriceChanged(uint256 _newPrice);
+    event Withdraw(address indexed _to, uint256 _amount);
 
     struct round{
         uint256 totalSupply;
         uint256 finishTime;
         uint256 tradingVolumeETH;
+        uint256 tokensLeft;
         bool saleOrTrade;//sale false trade true
-        
     }
 
     struct order{
-        address _owner;
-        uint256 _numRound;
-        uint256 _balance;
-        uint256 _totalAmountACDM;
-        uint256 _totalPriceForACDM;
-        bool _open;
+        address owner;
+        uint256 numRound;
+        uint256 balance;
+        uint256 totalAmountACDM;
+        uint256 totalPriceForACDM;
+        bool open;
     }
 
-    order[] orders;
-    mapping(uint256 => round) rounds;
-    mapping(address => uint256) unlockBalance;
-    mapping(address => uint256)  balancesETH;
-    mapping(address => uint256)  balancesACDM;
-    mapping(address => refer) refers;
+    mapping(uint256 => round) rounds; //roundId => round
+    mapping(address => address) refers; //referal => referer
+    mapping(uint256 => order[]) orders; //roundId => orders[]
     
     constructor(address _voteToken){
         token = ACDM(_voteToken);
@@ -51,80 +60,80 @@ contract TradingFloor is Ownable{
         numOfRound = 0;
     }
 
-
-    modifier userRegistered(address _user){
-        require(balancesETH[msg.sender] > 0, "User not registered");
-        _;
-    }
-
+    /** @notice Initialize contract.
+    */
     function tradingFloorInit() external onlyOwner{
-        decimal = token.decimals();
-        token.mint(address(this), 100000 * 10 ** decimal);
-        token.approve(address(this), 100000 * 10 ** decimal);
-        balancesACDM[address(this)] = 100000 * 10 ** decimal;
+        token.mint(address(this), 100000);
+        token.approve(address(this), 100000);
+
         rounds[numOfRound].finishTime = block.timestamp + roundTime;
-        rounds[numOfRound].totalSupply = 100000 * 10 ** decimal;
+        rounds[numOfRound].totalSupply = 100000;
         rounds[numOfRound].tradingVolumeETH = 0;
         rounds[numOfRound].saleOrTrade = false;
         totalOrdersRound = 0;
         totalOrders = 0;
     }
     
-    /** @notice Register user in contract.
-        * @param _firstRefer Address of first refer.
-        * @param _secondRefer Address of second refer.
+    /** @notice Unpausing functions of contract.
+    * @dev Available only to admin
+    * Allows calls to functions with `whenNotPaused` modifier.
     */
-    function registration(
-        address payable _firstRefer,
-        address payable _secondRefer
-    ) external
-    payable 
-    userRegistered(_firstRefer)
-    userRegistered(_secondRefer)
+    function unpause() external onlyOwner {
+    _unpause();
+    }
+
+    /** @notice Pausing some functions of contract.
+    * @dev Available only to admin.
+    * Prevents calls to functions with `whenNotPaused` modifier.
+    */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /** @notice Register user in contract.
+        * @param _refer Address of first refer.
+    */
+    function registration (
+        address _refer
+    ) external 
+    whenNotPaused
     returns(bool _success){
-        require(balancesETH[msg.sender] == 0, "User already registered");
-        balancesETH[msg.sender] = msg.value;
-        balancesACDM[msg.sender] = 0;
+        require(_refer != msg.sender, "Can not be self-referer");
             
-        refers[msg.sender].firstRefer = choiceRefers(_firstRefer);
-        refers[msg.sender].secondRefer = choiceRefers(_secondRefer);
+        refers[msg.sender] = choiceRefers(_refer);
         
-        emit UserIsRegistrated(msg.sender, refers[msg.sender].firstRefer, refers[msg.sender].secondRefer);
+        emit UserIsRegistrated(msg.sender, refers[msg.sender]);
     return true;
     }
 
-    /** @notice Withdraw token to token address.
+    /** @notice Withdraw token from token address.
     * @param _amount Amount of withdrawing tokens.
     */
-    function withdraw(uint256 _amount) external userRegistered(msg.sender){
-        require(balancesETH[msg.sender] < _amount,"Insufficent funds");
-        balancesETH[msg.sender] -= _amount;
-        payable(msg.sender).transfer(_amount);
-
+    function withdraw(address _to, uint256 _amount) external onlyOwner whenNotPaused{
+        sendEther(_to, _amount);
+    
         emit Withdraw(msg.sender, _amount);
     }
-    
-    
+
     /** @notice If refer address(0) return address of contract if not return refer.
       * @param _refer Address of refer.
       * @return address of new refer or contract address.
     */
-    function choiceRefers(address payable _refer)private view returns(address payable){
+    function choiceRefers(address _refer)private view returns(address){
         if(_refer != address(0)){
             return _refer;
         } else if(_refer == address(0)){
-            return payable(address(this));
+            return address(this);
         } 
     }
 
     /** @notice Finish round and start new, if time to finish end or all tokens saled.
     */
-    function finishRound() public {
+    function finishRound() external whenNotPaused {
         require(
-            balancesACDM[address(this)] == 0 || 
             rounds[numOfRound].finishTime <= block.timestamp,
             "Round can not be closed");
-        closeOrders();
+    
         numOfRound++;
         startRound();
     }
@@ -134,65 +143,62 @@ contract TradingFloor is Ownable{
     */
     function startRound() private returns(bool) {
         rounds[numOfRound].finishTime = block.timestamp + roundTime;
-        
-        rounds[numOfRound].tradingVolumeETH = 0;
-
-        if (rounds[numOfRound - 1].saleOrTrade == true){
+        if (rounds[numOfRound - 1].saleOrTrade == true){  
             changePrice();
+            
             rounds[numOfRound].saleOrTrade = false;
-            token.burn(balancesACDM[address(this)]);
+            token.burn(balanceOfACDM(address(this)));
              
-            uint256 totalSupplyForMint = ((rounds[numOfRound].tradingVolumeETH * 10e6) / (price * 10e6)); 
-         
+            uint256 totalSupplyForMint = ((rounds[numOfRound - 1].tradingVolumeETH * 10e6) / (price * 10e6)); 
+      
             token.mint(address(this), totalSupplyForMint);
             token.approve(address(this), totalSupplyForMint);
 
-            balancesACDM[address(this)] = totalSupplyForMint;
             rounds[numOfRound].totalSupply = totalSupplyForMint;
-
+            
+            rounds[numOfRound].tradingVolumeETH = 0;
             emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
-  
+
             return true;
         } else if(rounds[numOfRound - 1].saleOrTrade == false){
+            closeOrders();
             rounds[numOfRound].totalSupply = 0;
             rounds[numOfRound].saleOrTrade = true;
+            rounds[numOfRound].tradingVolumeETH = 0;
             
             emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
-            
             return true;
         } 
         return false;       
     }
 
-    //Trade round
     /** @notice Add order for buy tokens for ETH in trade round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
         * @param _totalPriceForACDM total price that sender want for all ACDM.
   
     */
-    function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) external userRegistered(msg.sender){
+    function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) external whenNotPaused{
         require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
-        require(balancesACDM[msg.sender] >= _amountACDM, "Insufficent tokens");
-        require(unlockBalance[msg.sender] + _amountACDM < balancesACDM[msg.sender],"Balance locked" );
-      
+        require(balanceOfACDM(msg.sender) >= _amountACDM, "Insufficent tokens");
+       
         order memory newOrder; 
-        newOrder._owner = msg.sender;
-        newOrder._totalAmountACDM = _amountACDM;
-        newOrder._totalPriceForACDM = _totalPriceForACDM;
-        newOrder._balance = _amountACDM;
-        newOrder._numRound = numOfRound;
-        newOrder._open = true;
+        newOrder.owner = msg.sender;
+        newOrder.totalAmountACDM = _amountACDM;
+        newOrder.totalPriceForACDM = _totalPriceForACDM;
+        newOrder.balance = _amountACDM;
+        newOrder.numRound = numOfRound;
+        newOrder.open = true;
         totalOrdersRound ++;
-        orders.push(newOrder);
-        unlockBalance[msg.sender] = _amountACDM;
+        orders[numOfRound].push(newOrder);
         emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
         idOrder++;
     }
     
+    /** @notice Close all orders opened in round.  
+    */
     function closeOrders()private{
         for(uint256 i=0;i < totalOrdersRound; i++){
-            orders[(totalOrders - totalOrdersRound) + i]._open = false;
-            unlockBalance[orders[(totalOrders - totalOrdersRound) + i]._owner] = 0;
+            orders[numOfRound][(totalOrders - totalOrdersRound) + i].open = false;
         }
         totalOrdersRound = 0;
     }
@@ -202,36 +208,42 @@ contract TradingFloor is Ownable{
         * @param _idOrder id of buyable order.
   
     */
-    function buyOrder(uint256 _idOrder, uint256 _amountACDM) external payable{
+    function buyOrder(
+        uint256 _idOrder,
+        uint256 _amountACDM
+        ) external 
+        payable 
+        whenNotPaused
+        nonReentrant
+    {
         require(_idOrder <= idOrder, "Order does not exist");
-        require(orders[_idOrder]._balance >= _amountACDM, "Insufficent tokens");
-        uint256 _price = (orders[_idOrder]._totalPriceForACDM * 10e6) / (orders[_idOrder]._totalAmountACDM * 10e6);
+        require(orders[numOfRound][_idOrder].open == true,"Order closed");
+        require(orders[numOfRound][_idOrder].balance >= _amountACDM, "Insufficent tokens");
+        
+        uint256 _price = (orders[numOfRound][_idOrder].totalPriceForACDM * 10e6) / (orders[numOfRound][_idOrder].totalAmountACDM * 10e6);
         uint256 priceForAmountACDM = (_amountACDM * (_price * 10e6)) / 10e6;
+        
         require(priceForAmountACDM <= msg.value,"Insufficens funds");
-        require(orders[idOrder]._open == true,"Order closed");
-
-        balancesETH[orders[_idOrder]._owner] += priceForAmountACDM;
-        payable(msg.sender).transfer(msg.value - priceForAmountACDM);
-        
+      
+        sendEther(msg.sender, msg.value - priceForAmountACDM);
+       
         rounds[numOfRound].tradingVolumeETH += priceForAmountACDM;
-          
-        balancesACDM[orders[_idOrder]._owner] -= _amountACDM * 10 ** decimal;
-        balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
-        
-        orders[_idOrder]._balance -= _amountACDM;
+        orders[numOfRound][_idOrder].balance -= _amountACDM;
 
-        transferFee(priceForAmountACDM, refers[orders[_idOrder]._owner].firstRefer, 25);
-        transferFee(priceForAmountACDM, refers[orders[_idOrder]._owner].secondRefer, 25);
+        transferFee(priceForAmountACDM, refers[orders[numOfRound][_idOrder].owner], 25);
+        transferFee(priceForAmountACDM, refers[refers[orders[numOfRound][_idOrder].owner]], 25);
         
-        token.transferFrom(orders[_idOrder]._owner, msg.sender, _amountACDM* 10 ** decimal );
+        IERC20(token).safeTransferFrom(orders[numOfRound][_idOrder].owner, msg.sender, _amountACDM );
         
-        emit OrderBought(orders[_idOrder]._owner, msg.sender, _amountACDM, priceForAmountACDM); 
+        emit OrderBought(orders[numOfRound][_idOrder].owner, msg.sender, _amountACDM, priceForAmountACDM); 
     }
 
     /** @notice Calculate and set new price for next round.
     */
     function changePrice() private{
-        price = ((price * 103) / 100) + 0.000004 ether; 
+        
+        price = ((price * 1030000) / 1000000) + 0.000004 ether; 
+        
         emit PriceChanged(price);
     }
 
@@ -239,25 +251,19 @@ contract TradingFloor is Ownable{
     /** @notice Buy ACDM tokens for ETH in Sale Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
     */
-    function buyACDMInSale(uint256 _amountACDM) external userRegistered(msg.sender){
+    function buyACDMInSale(uint256 _amountACDM) external payable nonReentrant whenNotPaused {
         uint256 priceForAmountACDM = (_amountACDM * price * 10e5) / 10e5;
-        require(balancesACDM[address(this)] >= _amountACDM, "Insufficent tokens");
         require(rounds[numOfRound].saleOrTrade == false, "Not a sale round");
-        require(balancesETH[msg.sender] >= priceForAmountACDM, "Insufficent funds");
-          
-        balancesETH[address(this)] += priceForAmountACDM;
-        balancesETH[msg.sender] -= priceForAmountACDM;
+        require(msg.value >= priceForAmountACDM, "Insufficent funds");
+         
         rounds[numOfRound].tradingVolumeETH += priceForAmountACDM;
 
-        balancesACDM[address(this)] -= _amountACDM * 10 ** decimal;
-        balancesACDM[msg.sender] += _amountACDM * 10 ** decimal;
+        transferFee(priceForAmountACDM, refers[msg.sender], 50);
+        transferFee(priceForAmountACDM, refers[refers[msg.sender]], 30);
         
-        transferFee(priceForAmountACDM, refers[msg.sender].firstRefer, 50);
-        transferFee(priceForAmountACDM, refers[msg.sender].secondRefer, 30);
+       IERC20(token).safeTransferFrom(address(this), msg.sender, _amountACDM);
         
-        token.transferFrom(address(this), msg.sender, _amountACDM* 10 ** decimal );
-        
-        emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM, balancesACDM[address(this)]); 
+        emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM); 
     }
     
     /** @notice Calculate and transfer fee to refer in ETH.
@@ -266,13 +272,25 @@ contract TradingFloor is Ownable{
         * @param _fee Percent of _totalPrice.
    
     */
-    function transferFee(uint256 _totalPrice, address payable _to, uint256 _fee)private{
+    function transferFee(uint256 _totalPrice, address _to, uint256 _fee)private{
         uint256 feeOfRefer = (_totalPrice * _fee * 10e5) / 10e8;
-        
-        balancesETH[address(this)] -= feeOfRefer;
-        balancesETH[_to] += feeOfRefer;
+        sendEther(_to, feeOfRefer);
 
         emit FeeTransfered(_to, feeOfRefer);
+    }
+
+    /** @notice Sends `amount` of ether to `account`.
+    * @dev We use `call()` instead of `send()` & `transfer()` because 
+    * they take a hard dependency on gas costs by forwarding a fixed 
+    * amount of gas: 2300 which may not be enough
+    * https://consensys.net/diligence/blog/2019/09/stop-using-soliditys-transfer-now/
+    *
+    * @param account The address to send ether to.
+    * @param amount The amount of ether.
+    */
+    function sendEther(address account, uint256 amount) private {
+        (bool sent,) = account.call{value: amount}("");
+        require(sent, "Failed to send Ether");
     }
 
     /// @notice Getter for price variable
@@ -287,22 +305,17 @@ contract TradingFloor is Ownable{
         return block.timestamp;
     }
 
-    /// @notice Return balance of address in ETH
-    /// @return balance type uint256
-    function balanceOfETH(address _userAddress) external view returns(uint256 balance){
-      return balancesETH[_userAddress];
-    }
-    
     /// @notice Return balance of address in ACDM
     /// @return balance type uint256
-    function balanceOfACDM(address _userAddress) external view returns(uint256 balance){
-      return balancesACDM[_userAddress];
+    function balanceOfACDM(address _userAddress) public view returns(uint256){
+      uint256 _balance = token.balanceOf(_userAddress);
+      return _balance;
     }
 
 
     /// @notice Getter for refers of address
     /// @return refers type
-    function getRefer(address _user) external view returns(refer memory){
+    function getRefer(address _user) external view returns(address){
         return refers[_user];
     }
 
@@ -320,8 +333,8 @@ contract TradingFloor is Ownable{
 
     /** @notice Getter for orders array
     */
-        function getOrder(uint256 _idOrder) external view returns(order memory){
-        return orders[_idOrder];
+        function getOrder(uint256 _numOfRound,uint256 _idOrder) external view returns(order memory){
+        return orders[_numOfRound][_idOrder];
     }
 
     /** @notice Getter for id orders array
@@ -329,18 +342,4 @@ contract TradingFloor is Ownable{
     function getIdOrder() external view returns(uint256){
         return idOrder;
     }
-
-    event UserIsRegistrated(address indexed _user, address indexed _firstRefer, address indexed _secondRefer);
-    event FeeTransfered(address indexed _to, uint256 _amount);
-    event ACDMBought(
-        address indexed buyer, 
-        uint256 _amountACDM, 
-        uint256 _PriceInETH, 
-        uint256 ACDMLeft
-    );
-    event RoundStarted(bool _saleOrTrade, uint256 _totalSupply, uint256 _price);
-    event OrderCreated(address indexed _owner, uint256 _amountACDM, uint256 _totalPriceForACDM, uint256 indexed idOrder);
-    event OrderBought(address indexed _owner, address indexed _buyer,uint256 _amountACDM, uint256 _priceForAmountACDM); 
-    event PriceChanged(uint256 _newPrice);
-    event Withdraw(address indexed _to, uint256 _amount);
 }

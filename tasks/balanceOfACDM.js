@@ -1,4 +1,4 @@
-task("balanceOfDao", "To get balance of address")
+task("balanceOfACDM", "To get balance of address")
 .addParam("addressOf", "The account address")
 .setAction(async (taskArgs) => {
 
