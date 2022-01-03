@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 contract ACDM is ERC20, ERC20Burnable, Pausable, AccessControl {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant BURNER_ROLE  = keccak256("BURNER_ROLE ");
+    bytes32 public constant BURNER_ROLE  = keccak256("BURNER_ROLE");
 
     constructor() ERC20("ACDM", "ACD") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -43,7 +43,7 @@ contract ACDM is ERC20, ERC20Burnable, Pausable, AccessControl {
     {
         super._beforeTokenTransfer(from, to, amount);
     }
-    
+
     function burn(address from, uint256 amount) external onlyRole(BURNER_ROLE) {
         _burn(from, amount);
     }

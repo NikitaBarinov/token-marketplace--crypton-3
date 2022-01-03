@@ -47,21 +47,13 @@ export type RoundStruct = {
   totalSupply: BigNumberish;
   finishTime: BigNumberish;
   tradingVolumeETH: BigNumberish;
-  tokensLeft: BigNumberish;
   saleOrTrade: boolean;
 };
 
-export type RoundStructOutput = [
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  BigNumber,
-  boolean
-] & {
+export type RoundStructOutput = [BigNumber, BigNumber, BigNumber, boolean] & {
   totalSupply: BigNumber;
   finishTime: BigNumber;
   tradingVolumeETH: BigNumber;
-  tokensLeft: BigNumber;
   saleOrTrade: boolean;
 };
 
@@ -73,7 +65,6 @@ export interface TradingFloorInterface extends utils.Interface {
     "buyOrder(uint256,uint256)": FunctionFragment;
     "cancelOrder(uint256)": FunctionFragment;
     "finishRound()": FunctionFragment;
-    "getBlockTimeStamp()": FunctionFragment;
     "getIdOrder()": FunctionFragment;
     "getOrder(uint256,uint256)": FunctionFragment;
     "getPrice()": FunctionFragment;
@@ -115,10 +106,6 @@ export interface TradingFloorInterface extends utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "finishRound",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getBlockTimeStamp",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -188,10 +175,6 @@ export interface TradingFloorInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "finishRound",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getBlockTimeStamp",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getIdOrder", data: BytesLike): Result;
@@ -407,8 +390,6 @@ export interface TradingFloor extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    getBlockTimeStamp(overrides?: CallOverrides): Promise<[BigNumber]>;
-
     getIdOrder(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     getOrder(
@@ -500,8 +481,6 @@ export interface TradingFloor extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  getBlockTimeStamp(overrides?: CallOverrides): Promise<BigNumber>;
-
   getIdOrder(overrides?: CallOverrides): Promise<BigNumber>;
 
   getOrder(
@@ -587,8 +566,6 @@ export interface TradingFloor extends BaseContract {
     cancelOrder(_id: BigNumberish, overrides?: CallOverrides): Promise<void>;
 
     finishRound(overrides?: CallOverrides): Promise<void>;
-
-    getBlockTimeStamp(overrides?: CallOverrides): Promise<BigNumber>;
 
     getIdOrder(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -774,8 +751,6 @@ export interface TradingFloor extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    getBlockTimeStamp(overrides?: CallOverrides): Promise<BigNumber>;
-
     getIdOrder(overrides?: CallOverrides): Promise<BigNumber>;
 
     getOrder(
@@ -864,8 +839,6 @@ export interface TradingFloor extends BaseContract {
     finishRound(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    getBlockTimeStamp(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     getIdOrder(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

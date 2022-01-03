@@ -2,24 +2,28 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe('Token contract', () => {
-    let Token, token, chairPerson, owner, addr1, addr2;
+    let Token, token, owner, addr1, addr2;
     const adminRole = ethers.constants.HashZero;
    
     const minterRole =ethers.utils.solidityKeccak256(["string"],["MINTER_ROLE"]);
     const burnerRole =ethers.utils.solidityKeccak256(["string"],["BURNER_ROLE"]);
-    const zero_address = "0x0000000000000000000000000000000000000000"
+    const zero_address = "0x0000000000000000000000000000000000000000";
+
+    before(async () => {
+        [owner, addr1, addr2] = await ethers.getSigners();
+        Token = await ethers.getContractFactory("ACDM");
+        TradingFloor = await ethers.getContractFactory('TradingFloor');
+    });
     
     beforeEach(async () => {
-        [owner, chairPerson, addr1, addr2, _] = await ethers.getSigners();
-        Token = await ethers.getContractFactory('ACDM');
         token = await Token.connect(owner).deploy();
         await token.deployed();
 
-        TradingFloor = await ethers.getContractFactory('TradingFloor');
         tradingFloor = await TradingFloor.deploy(token.address);
         await tradingFloor.deployed();
         
         token.connect(owner).setRoleForTradingFloor(tradingFloor.address);
+        
         tradingFloor.connect(owner).tradingFloorInit();
     });
 
@@ -32,6 +36,10 @@ describe('Token contract', () => {
             expect(await token.hasRole(minterRole,tradingFloor.address)).to.equal(true);
         });
 
+        it('Should set burner role for trading floor', async () => {
+            expect(await token.hasRole(burnerRole,tradingFloor.address)).to.equal(true);
+        });
+
         it('Should set right trading floor address', async () => {
             expect(tradingFloor.address).to.equal(await tradingFloor.getTradingFloorAddress());
         });
@@ -42,6 +50,12 @@ describe('Token contract', () => {
             .to.equal(
                 await token.balanceOf(tradingFloor.address)
             );       
+        });
+
+        it("Non owner should not be able to init Marketplace", async () => {
+            await expect(
+              tradingFloor.connect(addr1).tradingFloorInit()
+            ).to.be.revertedWith("Ownable: caller is not the owner");
         });
     });
 
@@ -270,11 +284,24 @@ describe('Token contract', () => {
                 .addOrder(1, 3))
             .to.be.revertedWith("Not a trade round")
         });
+
+        it('addOrder: should emit "OrderCreated"', async () => {    
+            await tradingFloor.connect(addr1).buyACDMInSale(100,{
+                value: ethers.utils.parseEther("25")
+            });
+
+            await tradingFloor.connect(addr1).finishRound();
+
+            await expect(
+                tradingFloor.connect(addr1)
+                .addOrder(1, 3))
+            .to.emit(tradingFloor, "OrderCreated");
+        });
     
         it('buyOrder: should buy order', async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100,
                 {
-                        value: ethers.utils.parseEther("20")
+                    value: ethers.utils.parseEther("20")
             });
             await tradingFloor.connect(addr1).finishRound();
             await tradingFloor.connect(addr1).addOrder(1, 30);
@@ -379,7 +406,6 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).finishRound();  
             await tradingFloor.connect(addr1).addOrder(1, 30);
 
-            token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
             token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));    
                 
             expect(await
@@ -390,7 +416,7 @@ describe('Token contract', () => {
             .to.emit(tradingFloor, 'FeeTransfered');
         });
 
-        it('closeOrder: should close open order', async () => {
+        it('cancelOrder: should close open order', async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
@@ -406,7 +432,7 @@ describe('Token contract', () => {
             expect(0).to.equal(orderInfo.balance);
         });
 
-        it('closeOrder: should reverted with "Order already closed"', async () => {
+        it('cancelOrder: should reverted with "Order already closed"', async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
@@ -420,7 +446,7 @@ describe('Token contract', () => {
             .to.be.revertedWith('Order already closed')
         });
 
-        it('closeOrder: should reverted with "Not order owner"', async () => {
+        it('cancelOrder: should reverted with "Not order owner"', async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
@@ -433,7 +459,7 @@ describe('Token contract', () => {
             .to.be.revertedWith('Not order owner')
         });
 
-        it('closeOrder: should emit "OrderCancelled"', async () => {
+        it('cancelOrder: should emit "OrderCancelled"', async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
@@ -505,7 +531,71 @@ describe('Token contract', () => {
             .to.be.revertedWith('Ownable: caller is not the owner'); 
         });
     });
-    
+
+    describe('View functions', () => {
+        it('getPrice: should get round price', async () => {
+            const round1Price = await tradingFloor.getPrice();
+
+            await tradingFloor.connect(addr1).buyACDMInSale(100,{
+                value: ethers.utils.parseEther("25")
+            });
+            await tradingFloor.connect(addr1).finishRound();
+            await tradingFloor.connect(addr1).finishRound();
+            const round2Price = await tradingFloor.getPrice();
+          
+            expect(Number(round1Price)).to.equal(Number(10000000000000));
+            expect(Number(round2Price)).to.equal(Number(14300000000000));
+            });
+
+        it('balanceOfACDM: should balance of addresss in ACDM', async () => {
+            const addr1Balance = await tradingFloor.balanceOfACDM(addr1.address);
+            const tradingFloorBalance = await tradingFloor.balanceOfACDM(tradingFloor.address);
+            expect(Number(tradingFloorBalance) ).to.equal(100000);
+            expect(Number(addr1Balance) ).to.equal(0);
+        });
+
+        it("getTradingFloorAddress: should get address of trading floor", async () => {
+            const tradingFloorAddress = await tradingFloor.getTradingFloorAddress();
+            expect(tradingFloorAddress).to.equal(tradingFloor.address);
+        });
+
+        it("getRound: should get round info by id", async () => {
+            const roundInfo = await tradingFloor.getRound(0);
+            
+            expect(Number(roundInfo.totalSupply)).to.equal(100000);
+            expect(Number(roundInfo.tradingVolumeETH)).to.equal(0);
+            expect(roundInfo.saleOrTrade).to.equal(false);
+        });
+
+        it("getRound: should get second round info by id", async () => {
+            const roundInfo = await tradingFloor.getRound(0);
+           
+            expect(Number(roundInfo.totalSupply)).to.equal(100000);
+            expect(Number(roundInfo.tradingVolumeETH)).to.equal(0);
+            expect(roundInfo.saleOrTrade).to.equal(false);
+            
+            await tradingFloor.connect(addr1).finishRound();
+
+            const roundInfo1 = await tradingFloor.getRound(1);
+           
+            expect(Number(roundInfo1.totalSupply)).to.equal(0);
+            expect(Number(roundInfo1.tradingVolumeETH)).to.equal(0);
+            expect(roundInfo1.saleOrTrade).to.equal(true);
+        });
+
+        it("getIdOrder: should get max id order", async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+            const tradingFloorIdOrder = await tradingFloor.getIdOrder();
+            expect(tradingFloorIdOrder).to.equal(1);
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+            const tradingFloorIdOrder1 = await tradingFloor.getIdOrder();
+            expect(tradingFloorIdOrder1).to.equal(2);
+        });
+    });
 });
 
 

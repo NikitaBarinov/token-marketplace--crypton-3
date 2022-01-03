@@ -38,7 +38,6 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         uint256 totalSupply;
         uint256 finishTime;
         uint256 tradingVolumeETH;
-        uint256 tokensLeft;
         bool saleOrTrade;//sale false trade true
     }
 
@@ -315,19 +314,12 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         return price;
     }
 
-    /// @notice Return block.timestamp
-    /// @return block.timestamp type uint256
-    function getBlockTimeStamp() external view returns(uint256){
-        return block.timestamp;
-    }
-
     /// @notice Return balance of address in ACDM
     /// @return balance type uint256
     function balanceOfACDM(address _userAddress) public view returns(uint256){
       uint256 _balance = token.balanceOf(_userAddress);
       return _balance;
     }
-
 
     /// @notice Getter for refers of address
     /// @return refers type
@@ -337,7 +329,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Getter for contract address
     /// @return address(this) type address
-    function getTradingFloorAddress()external view returns(address){
+    function getTradingFloorAddress() external view returns(address){
         return address(this);
     }
 
@@ -349,7 +341,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
 
     /** @notice Getter for orders array
     */
-        function getOrder(uint256 _numOfRound,uint256 _idOrder) external view returns(order memory){
+    function getOrder(uint256 _numOfRound,uint256 _idOrder) external view returns(order memory){
         return orders[_numOfRound][_idOrder];
     }
 
