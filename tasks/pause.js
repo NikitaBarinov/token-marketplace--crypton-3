@@ -1,5 +1,4 @@
-task("buyAcdmInSale", "Buy acdm tokens in sale round")
-.addParam("address", "Address of ")
+task("pause", "To get alloance of address")
 .setAction(async (taskArgs) => {
 const [first, second] = await hre.ethers.getSigners();
 
@@ -7,8 +6,8 @@ var tradingFloor = await hre.ethers.getContractAt("TradingFloor", process.env.TR
 
 const result = await tradingFloor
 .connect(second)
-.buyACDMInSale(
-  taskArgs.address
+.pause(
+
 );
 
 console.log('Transaction hash:',result.hash);

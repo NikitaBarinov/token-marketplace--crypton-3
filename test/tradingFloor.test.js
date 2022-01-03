@@ -10,7 +10,7 @@ describe('Token contract', () => {
     const zero_address = "0x0000000000000000000000000000000000000000";
 
     before(async () => {
-        [owner, addr1, addr2] = await ethers.getSigners();
+        [addr1, owner, addr2] = await ethers.getSigners();
         Token = await ethers.getContractFactory("ACDM");
         TradingFloor = await ethers.getContractFactory('TradingFloor');
     });
@@ -126,7 +126,9 @@ describe('Token contract', () => {
         it("buyACDMInSale: should reverted with 'Not a sale round'", async () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100,{
                 value: ethers.utils.parseEther("25")
-           });
+            });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
             
             await expect(
@@ -189,6 +191,8 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
 
             roundInfo = await tradingFloor.getRound(1);
@@ -207,6 +211,8 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
 
             roundInfo = await tradingFloor.getRound(1);
@@ -225,7 +231,8 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("25")
             });
-         
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await expect(
                 tradingFloor.connect(addr1)
                 .finishRound())
@@ -236,7 +243,13 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
+
             await tradingFloor.connect(addr1).finishRound();
+
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await expect(
                 tradingFloor.connect(addr1)
                 .finishRound())
@@ -247,8 +260,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
-    
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 3);
         
             orderInfo = await tradingFloor.getOrder(1, 0);
@@ -266,7 +282,8 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1,{
                 value: ethers.utils.parseEther("25")
             });
-            
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
         
             await expect(
@@ -289,9 +306,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
 
             await tradingFloor.connect(addr1).finishRound();
-
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
             await expect(
                 tradingFloor.connect(addr1)
                 .addOrder(1, 3))
@@ -303,13 +322,12 @@ describe('Token contract', () => {
                 {
                     value: ethers.utils.parseEther("20")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
-            await tradingFloor.connect(addr1).addOrder(1, 30);
-        
-        
-            token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
             token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
-            
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+           
             balanceOfAddr1InToken = Number(await token.balanceOf(addr1.address));
             balanceOfAddr1InACDM = Number(await tradingFloor.balanceOfACDM(addr1.address));
         
@@ -319,7 +337,7 @@ describe('Token contract', () => {
         
             orderInfo = await tradingFloor.getOrder(1, 0);
             expect(Number(await tradingFloor.balanceOfACDM(addr1.address)) ).to.equal(Number(await token.balanceOf(addr1.address)));
-            expect(Number(await tradingFloor.balanceOfACDM(addr1.address)) ).to.equal(80);
+            expect(Number(await tradingFloor.balanceOfACDM(addr1.address)) ).to.equal(70);
             expect(Number(await tradingFloor.balanceOfACDM(addr2.address)) ).to.equal(Number(await token.balanceOf(addr2.address)));
             expect(Number(await tradingFloor.balanceOfACDM(addr2.address)) ).to.equal(20);
         });
@@ -329,11 +347,10 @@ describe('Token contract', () => {
                 {
                         value: ethers.utils.parseEther("20")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
              
-            token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
-            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
-
             await expect(
                 tradingFloor.connect(addr1)
                 .buyOrder(6, 20,{
@@ -346,7 +363,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("20")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+        
             await tradingFloor.connect(addr1).addOrder(1, 30);
 
             token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
@@ -362,7 +383,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100000,{
                 value: ethers.utils.parseEther("20")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
 
             token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
@@ -380,7 +405,11 @@ describe('Token contract', () => {
                 await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                     value: ethers.utils.parseEther("0.5")
                 });
+                await network.provider.send("evm_increaseTime", [259200])
+                await network.provider.send("evm_mine");
                 await tradingFloor.connect(addr1).finishRound();  
+                token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
                 await tradingFloor.connect(addr1).addOrder(1, 30);
 
                 token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
@@ -403,7 +432,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
-            await tradingFloor.connect(addr1).finishRound();  
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
+            await tradingFloor.connect(addr1).finishRound(); 
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
 
             token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));    
@@ -420,7 +453,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
             
             await tradingFloor.connect(addr1).cancelOrder(0);
@@ -436,7 +473,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
             await tradingFloor.connect(addr1)
             .cancelOrder(0);
@@ -450,7 +491,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
            
             await expect(
@@ -463,7 +508,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();  
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             await tradingFloor.connect(addr1).addOrder(1, 30);
    
             expect(await
@@ -539,7 +588,11 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(100,{
                 value: ethers.utils.parseEther("25")
             });
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
             const round2Price = await tradingFloor.getPrice();
           
@@ -573,7 +626,8 @@ describe('Token contract', () => {
             expect(Number(roundInfo.totalSupply)).to.equal(100000);
             expect(Number(roundInfo.tradingVolumeETH)).to.equal(0);
             expect(roundInfo.saleOrTrade).to.equal(false);
-            
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
             await tradingFloor.connect(addr1).finishRound();
 
             const roundInfo1 = await tradingFloor.getRound(1);
@@ -587,11 +641,17 @@ describe('Token contract', () => {
             await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                 value: ethers.utils.parseEther("0.5")
             });
-            await tradingFloor.connect(addr1).finishRound();  
+            await network.provider.send("evm_increaseTime", [259200])
+            await network.provider.send("evm_mine");
+            await tradingFloor.connect(addr1).finishRound(); 
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+          
             await tradingFloor.connect(addr1).addOrder(1, 30);
             const tradingFloorIdOrder = await tradingFloor.getIdOrder();
             expect(tradingFloorIdOrder).to.equal(1);
             await tradingFloor.connect(addr1).addOrder(1, 30);
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+         
             const tradingFloorIdOrder1 = await tradingFloor.getIdOrder();
             expect(tradingFloorIdOrder1).to.equal(2);
         });

@@ -10,28 +10,55 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 
 contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
-    uint256 constant roundTime = 0;
+    
+    //Time of the round 
+    uint256 constant roundTime = 3 * 24 * 3600;
     ACDM private token;
+
+    //Number of round whith is going now
     uint256 public numOfRound;
+
+    //Price in sale round
     uint256 private price;
-    uint256 public totalSupplyACDM;
-    uint256 decimal;
+    
+    //Max order id
     uint256 private idOrder = 0;
+    
+    //Amount of orders in round 
     uint256 totalOrdersRound;
+
+    //Amount of orders in all time
     uint256 totalOrders;
 
+    //Emitted when user registered refer
     event UserIsRegistrated(address indexed _user, address indexed _refer);
+    
+    //Emitted when contract send fee in ETH to refer
     event FeeTransfered(address indexed _to, uint256 _amount);
+    
+    //Emitted when buyer buy amount of ACDM token
     event ACDMBought(
         address indexed buyer, 
         uint256 _amountACDM, 
         uint256 _PriceInETH
     );
+    
+    //Emitted when started new round 
     event RoundStarted(bool _saleOrTrade, uint256 _totalSupply, uint256 _price);
+    
+    //Emitted when created new order
     event OrderCreated(address indexed _owner, uint256 _amountACDM, uint256 _totalPriceForACDM, uint256 indexed idOrder);
+    
+    //Emitted when buyer buy tokens in owner's order
     event OrderBought(address indexed _owner, address indexed _buyer,uint256 _amountACDM, uint256 _priceForAmountACDM); 
+    
+    //Emitted when price change
     event PriceChanged(uint256 _newPrice);
+    
+    //Emitted when owner withdraw ETH from account 
     event Withdraw(address indexed _to, uint256 _amount);
+    
+    //Emitted when order cancelled
     event OrderCancelled(uint256 _numOfRound, uint256 _id, address _owner );
 
     struct round{
@@ -60,7 +87,8 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         numOfRound = 0;
     }
 
-    /** @notice Initialize contract.
+    /** @notice Initialize contract and start first round.
+    * @dev Available only to admin
     */
     function tradingFloorInit() external onlyOwner{
         token.mint(address(this), 100000);
@@ -83,7 +111,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
     /** @notice Pausing some functions of contract.
-    * @dev Available only to admin.
+    * @dev Available only to owner.
     * Prevents calls to functions with `whenNotPaused` modifier.
     */
     function pause() external onlyOwner {
@@ -91,7 +119,8 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
     /** @notice Register user in contract.
-        * @param _refer Address of first refer.
+    * @param _refer Address of first refer.
+    * Allows calls to functions with `whenNotPaused` modifier.
     */
     function registration (
         address _refer
@@ -107,7 +136,9 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
     /** @notice Withdraw token from token address.
+    * @dev Available only to owner.
     * @param _amount Amount of withdrawing tokens.
+    * Prevents calls to functions with `whenNotPaused` modifier.
     */
     function withdraw(address _to, uint256 _amount) external onlyOwner whenNotPaused{
         sendEther(_to, _amount);
@@ -116,6 +147,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
     /** @notice Finish round and start new, if time to finish end or all tokens saled.
+    * Prevents calls to functions with `whenNotPaused` modifier.
     */
     function finishRound() external whenNotPaused {
         require(
@@ -127,13 +159,15 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
 
-    /** @notice Start new round.
+    /** @notice Starts new round.
+    * @dev If previous round was sale, starts trade round.
+    * @dev If previous round was trade, starts sale round.
     */
     function startRound() private returns(bool) {
         rounds[numOfRound].finishTime = block.timestamp + roundTime;
         if (rounds[numOfRound - 1].saleOrTrade == true){  
             changePrice();
-            
+            closeOrders();
             rounds[numOfRound].saleOrTrade = false;
             token.burn(balanceOfACDM(address(this)));
              
@@ -144,12 +178,12 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
 
             rounds[numOfRound].totalSupply = totalSupplyForMint;
             
-            rounds[numOfRound].tradingVolumeETH = 0;
             emit RoundStarted(rounds[numOfRound].saleOrTrade, rounds[numOfRound].totalSupply, price);
 
             return true;
+
         } else if(rounds[numOfRound - 1].saleOrTrade == false){
-            closeOrders();
+            
             rounds[numOfRound].totalSupply = 0;
             rounds[numOfRound].saleOrTrade = true;
             rounds[numOfRound].tradingVolumeETH = 0;
@@ -163,12 +197,14 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     /** @notice Add order for buy tokens for ETH in trade round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
         * @param _totalPriceForACDM total price that sender want for all ACDM.
-  
+        * Prevents calls to functions with `whenNotPaused` modifier.
     */
     function addOrder(uint256 _totalPriceForACDM, uint256 _amountACDM) external whenNotPaused{
         require(rounds[numOfRound].saleOrTrade == true, "Not a trade round");
         require(balanceOfACDM(msg.sender) >= _amountACDM, "Insufficent tokens");
-       
+        
+        IERC20(token).safeTransferFrom(msg.sender, address(this), _amountACDM);
+        
         order memory newOrder; 
         newOrder.owner = msg.sender;
         newOrder.totalAmountACDM = _amountACDM;
@@ -178,6 +214,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         newOrder.open = true;
         totalOrdersRound ++;
         orders[numOfRound].push(newOrder);
+        
         emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
         idOrder++;
     }
@@ -185,7 +222,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     /** @notice Buy ACDM tokens for ETH in trade Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
         * @param _idOrder id of buyable order.
-  
+        * Prevents calls to functions with `whenNotPaused` modifier.
     */
     function buyOrder(
         uint256 _idOrder,
@@ -212,7 +249,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         transferFee(priceForAmountACDM, refers[orders[numOfRound][_idOrder].owner], 25);
         transferFee(priceForAmountACDM, refers[refers[orders[numOfRound][_idOrder].owner]], 25);
         
-        IERC20(token).safeTransferFrom(orders[numOfRound][_idOrder].owner, msg.sender, _amountACDM );
+        IERC20(token).safeTransfer(msg.sender, _amountACDM);
         
         emit OrderBought(orders[numOfRound][_idOrder].owner, msg.sender, _amountACDM, priceForAmountACDM); 
     }
@@ -268,7 +305,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         order memory choisenOrder = orders[numOfRound][_id];
         require(choisenOrder.owner == msg.sender,"Not order owner");
         require(choisenOrder.open == true,"Order already closed");
-
+        
         orders[numOfRound][_id].balance = 0;
         _cancelOrder(choisenOrder, _id);
     }
@@ -277,6 +314,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     */
     function _cancelOrder(order memory _choisenOrder, uint256 _id) private{
         _choisenOrder.open = false;
+        if (_choisenOrder.balance > 0) IERC20(token).safeTransfer(_choisenOrder.owner, _choisenOrder.balance);
         _choisenOrder.balance = 0;
         orders[numOfRound][_id] = _choisenOrder;
 
@@ -334,18 +372,21 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     }
 
     /** @notice Getter for mapping rounds
+    /// @return rounds[id] type round
     */
     function getRound(uint256 _id)external view returns(round memory){
         return rounds[_id];
     }
 
     /** @notice Getter for orders array
+    /// @return order by round number and idOrder 
     */
     function getOrder(uint256 _numOfRound,uint256 _idOrder) external view returns(order memory){
         return orders[_numOfRound][_idOrder];
     }
 
     /** @notice Getter for id orders array
+    /// @return idOrder max id 
     */
     function getIdOrder() external view returns(uint256){
         return idOrder;

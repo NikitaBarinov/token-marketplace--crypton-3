@@ -7,13 +7,9 @@ async function main() {
     const balance = await accounts[1].getBalance();
     console.log('Account balance ',balance.toString());
     const token = await hre.ethers.getContractAt("ACDM", process.env.TOKEN_ADDRESS);
-    const tradingFloor = await hre.ethers.getContractAt("TradingFloor", process.env.TRADINGFLOOR_ADDRESS);
-    
-
-    
-    token.connect(accounts[2]).setRoleForTradingFloor(process.env.TRADINGFLOOR_ADDRESS);
-    tradingFloor.connect(accounts[2]).tradingFloorInit();
-    console.log("Deploying successfuly complited");
+     
+    await token.connect(accounts[1]).setRoleForTradingFloor(process.env.TRADINGFLOOR_ADDRESS);
+    console.log("Set role for trading floor successfuly complited");
 }   
 
 main()

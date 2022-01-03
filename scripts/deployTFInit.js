@@ -6,17 +6,13 @@ async function main() {
     
     const balance = await accounts[1].getBalance();
     console.log('Account balance ',balance.toString());
- 
-    const TradingFloor = await ethers.getContractFactory("TradingFloor");
-    const tradingFloor = await TradingFloor.connect(accounts[1]).deploy(process.env.TOKEN_ADDRESS);
-    await tradingFloor.deployed();
-
-    console.log('TradingFloor address:', tradingFloor.address);
+    const tradingFloor = await hre.ethers.getContractAt("TradingFloor", process.env.TRADINGFLOOR_ADDRESS);
     
-    fs.appendFileSync(
-      `.env`,
-    `\r\# Deployed at \rTRADINGFLOOR_ADDRESS=${tradingFloor.address}\r`
-    );
+
+
+    var result = await tradingFloor.connect(accounts[1]).tradingFloorInit();
+    console.log("Trading floor successfuly init");
+    console.log(result);
 }   
 
 main()

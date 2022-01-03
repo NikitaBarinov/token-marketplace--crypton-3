@@ -6,13 +6,9 @@ async function main() {
     
     const balance = await accounts[1].getBalance();
     console.log('Account balance ',balance.toString());
-    
-    // const metadataToken = JSON.parse(fs.readFileSync('artifacts/contracts/Token/Token.sol/Token.json'))
-    // const metadataDao = JSON.parse(fs.readFileSync('artifacts/contracts/DAO.sol/DAO.json'))
-    
 
     const Token = await ethers.getContractFactory("ACDM");
-    const token = await Token.deploy();
+    const token = await Token.connect(accounts[1]).deploy();
     await token.deployed();
 
     console.log('Token address:',token.address);
@@ -20,7 +16,6 @@ async function main() {
     fs.appendFileSync(
       `.env`,
     `\r\# Deployed at \rTOKEN_ADDRESS=${token.address}\r`
-    
     );
 }   
 

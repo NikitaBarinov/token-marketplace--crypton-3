@@ -3,4 +3,11 @@ require('./addOrder.js');
 require('./getOrder.js');
 require('./finishRound.js');
 require('./registrate.js');
-
+require('./cancelOrder.js');
+require('./getIdOrder.js');
+require('./getPrice.js');
+require('./getRound.js');
+require('./pause.js');
+require('./unpause.js');
+require('./withdraw.js');
+require('./getOwner.js');
