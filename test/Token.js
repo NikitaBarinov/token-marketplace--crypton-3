@@ -132,6 +132,19 @@ describe('Token contract', () => {
                 .to.emit(tradingFloor, "ACDMBought");      
         });
 
+        it("buyACDMInSale: should emit 'FeeTransfered'", async () => { 
+            await tradingFloor.connect(addr1)
+                .registration(
+                    owner.address
+            );
+            await expect(
+                tradingFloor.connect(addr1)
+                .buyACDMInSale(100,{
+                    value: ethers.utils.parseEther("25")
+               }))
+            .to.emit(tradingFloor, "FeeTransfered");      
+    });
+
         it('finishRound: should finish round', async () => {
             await tradingFloor.connect(addr1)
                 .registration(
@@ -203,6 +216,17 @@ describe('Token contract', () => {
                 tradingFloor.connect(addr1)
                 .finishRound())
             .to.emit(tradingFloor, "RoundStarted");
+        });  
+
+        it('finishRound: should emit "PriceChanged"', async () => {      
+            await tradingFloor.connect(addr1).buyACDMInSale(100000,{
+                value: ethers.utils.parseEther("25")
+            });
+            await tradingFloor.connect(addr1).finishRound();
+            await expect(
+                tradingFloor.connect(addr1)
+                .finishRound())
+            .to.emit(tradingFloor, "PriceChanged");
         });  
             
         it('addOrder: should add new order', async () => {
@@ -328,7 +352,7 @@ describe('Token contract', () => {
         it('buyOrder: should emit "Order bought"', async () => {
                 await tradingFloor.connect(addr1).buyACDMInSale(1000,{
                     value: ethers.utils.parseEther("0.5")
-            });
+                });
                 await tradingFloor.connect(addr1).finishRound();  
                 await tradingFloor.connect(addr1).addOrder(1, 30);
 
@@ -341,9 +365,150 @@ describe('Token contract', () => {
                         value: ethers.utils.parseEther("10")
                 }))
                 .to.emit(tradingFloor, "OrderBought")
-            });
+                
         });
+
+        it('buyOrder: should emit "FeeTransfered"', async () => {
+            await tradingFloor.connect(addr1)
+                .registration(
+                    owner.address
+            );
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+
+            token.connect(addr2).approve(tradingFloor.address, ethers.utils.parseEther("20"));
+            token.connect(addr1).approve(tradingFloor.address, ethers.utils.parseEther("20"));    
+                
+            expect(await
+                tradingFloor.connect(addr1)
+                .buyOrder(0, 20,{
+                    value: ethers.utils.parseEther("10")
+            }))
+            .to.emit(tradingFloor, 'FeeTransfered');
+        });
+
+        it('closeOrder: should close open order', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+            
+            await tradingFloor.connect(addr1).cancelOrder(0);
+            var orderInfo = await tradingFloor.connect(addr1).getOrder(1, 0);
+
+            
+            expect(addr1.address).to.equal(orderInfo.owner);
+            expect(false).to.equal(orderInfo.open);
+            expect(0).to.equal(orderInfo.balance);
+        });
+
+        it('closeOrder: should reverted with "Order already closed"', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+            await tradingFloor.connect(addr1)
+            .cancelOrder(0);
+            await expect(
+                tradingFloor.connect(addr1)
+                .cancelOrder(0))
+            .to.be.revertedWith('Order already closed')
+        });
+
+        it('closeOrder: should reverted with "Not order owner"', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+           
+            await expect(
+                tradingFloor.connect(owner)
+                .cancelOrder(0))
+            .to.be.revertedWith('Not order owner')
+        });
+
+        it('closeOrder: should emit "OrderCancelled"', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            await tradingFloor.connect(addr1).finishRound();  
+            await tradingFloor.connect(addr1).addOrder(1, 30);
+   
+            expect(await
+                tradingFloor.connect(addr1)
+                .cancelOrder(0))
+            .to.emit(tradingFloor, 'OrderCancelled');
+        });
+
+        it('withdraw: should withdraw ETH', async () => {
+           await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+            
+            const initTFBalance = await ethers.provider.getBalance(tradingFloor.address);
+    
+            await tradingFloor.connect(owner).withdraw(owner.address,1000);  
+            
+            const finalTFBalance = await ethers.provider.getBalance(tradingFloor.address);
+            
+            expect(Number(initTFBalance - finalTFBalance)).to.equal(1000);
+        });
+
+        it('withdraw: should reverted with "Ownable: caller is not the owner" ', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                 value: ethers.utils.parseEther("0.5")
+             });
+
+            await expect(
+                tradingFloor.connect(addr1)
+                .withdraw(owner.address, ethers.utils.parseEther("0.001")))
+            .to.be.revertedWith('Ownable: caller is not the owner')
+         });
+
+        it('withdraw: should emit "Withdraw"', async () => {
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                    value: ethers.utils.parseEther("0.5")
+                });
+            
+            await tradingFloor.connect(owner).withdraw(owner.address,1000);  
+            
+            expect(await
+                tradingFloor.connect(owner).
+                withdraw(owner.address,1000))
+            .to.emit(tradingFloor, 'Withdraw');
+        });
+
+        it('Pausable: should pause and unpause contract', async () => {
+            await tradingFloor.pause();
+            
+            await expect(tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            })).to.be.revertedWith('Pausable: paused');
+
+            await tradingFloor.unpause();
+
+            await tradingFloor.connect(addr1).buyACDMInSale(1000,{
+                value: ethers.utils.parseEther("0.5")
+            });
+    
+            expect(await token.connect(owner).balanceOf(addr1.address)).to.equal(1000);
+        });
+
+        it('Pausable: should be reverted with "Ownable: caller is not the owner"', async () => {
+            await expect(tradingFloor.connect(addr1).pause())
+            .to.be.revertedWith('Ownable: caller is not the owner'); 
+        });
+    });
+    
 });
+
+
 
 
 

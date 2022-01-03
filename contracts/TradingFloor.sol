@@ -32,6 +32,7 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
     event OrderBought(address indexed _owner, address indexed _buyer,uint256 _amountACDM, uint256 _priceForAmountACDM); 
     event PriceChanged(uint256 _newPrice);
     event Withdraw(address indexed _to, uint256 _amount);
+    event OrderCancelled(uint256 _numOfRound, uint256 _id, address _owner );
 
     struct round{
         uint256 totalSupply;
@@ -181,16 +182,6 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         emit OrderCreated(msg.sender, _amountACDM, _totalPriceForACDM, idOrder);
         idOrder++;
     }
-    
-    /** @notice Close all orders opened in round.  
-    */
-    function closeOrders()private{
-        uint256 lenght = totalOrdersRound;
-        for(uint256 i=0;i < lenght; i++){
-            orders[numOfRound][(totalOrders - totalOrdersRound) + i].open = false;
-        }
-        totalOrdersRound = 0;
-    }
 
     /** @notice Buy ACDM tokens for ETH in trade Round.
         * @param _amountACDM Amount of tokens which the user wants to buy .
@@ -249,6 +240,8 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
         transferFee(priceForAmountACDM, refers[msg.sender], 50);
         transferFee(priceForAmountACDM, refers[refers[msg.sender]], 30);
         
+        sendEther(msg.sender, msg.value - priceForAmountACDM);
+
         IERC20(token).safeTransferFrom(address(this), msg.sender, _amountACDM);
         
         emit ACDMBought(msg.sender, _amountACDM, priceForAmountACDM); 
@@ -268,6 +261,38 @@ contract TradingFloor is Ownable, ReentrancyGuard, Pausable {
             sendEther(_send, feeOfRefer);
             emit FeeTransfered(_to, feeOfRefer);
         } 
+    }
+
+    /** @notice Cancel choicen order by the order owner, opened in round.  
+    */
+    function cancelOrder(uint256 _id) external {
+        order memory choisenOrder = orders[numOfRound][_id];
+        require(choisenOrder.owner == msg.sender,"Not order owner");
+        require(choisenOrder.open == true,"Order already closed");
+
+        orders[numOfRound][_id].balance = 0;
+        _cancelOrder(choisenOrder, _id);
+    }
+
+    /** @notice Cancel choicen order opened in round.  
+    */
+    function _cancelOrder(order memory _choisenOrder, uint256 _id) private{
+        _choisenOrder.open = false;
+        _choisenOrder.balance = 0;
+        orders[numOfRound][_id] = _choisenOrder;
+
+        emit OrderCancelled(numOfRound, _id, orders[numOfRound][_id].owner);
+    }
+
+    /** @notice Close all orders opened in round.  
+    */ 
+    function closeOrders()private{
+        uint256 lenght = totalOrdersRound;
+        uint256 idStartOrdersRound = totalOrders - totalOrdersRound;
+        for(uint256 i=0;i < lenght; i++){
+            _cancelOrder(orders[numOfRound][idStartOrdersRound + i],idStartOrdersRound + i);
+        }
+        totalOrdersRound = 0;
     }
 
     /** @notice Sends `amount` of ether to `account`.

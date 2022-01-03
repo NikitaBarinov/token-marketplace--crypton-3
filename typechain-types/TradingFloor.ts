@@ -71,6 +71,7 @@ export interface TradingFloorInterface extends utils.Interface {
     "balanceOfACDM(address)": FunctionFragment;
     "buyACDMInSale(uint256)": FunctionFragment;
     "buyOrder(uint256,uint256)": FunctionFragment;
+    "cancelOrder(uint256)": FunctionFragment;
     "finishRound()": FunctionFragment;
     "getBlockTimeStamp()": FunctionFragment;
     "getIdOrder()": FunctionFragment;
@@ -107,6 +108,10 @@ export interface TradingFloorInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "buyOrder",
     values: [BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "cancelOrder",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "finishRound",
@@ -178,6 +183,10 @@ export interface TradingFloorInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "buyOrder", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "cancelOrder",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "finishRound",
     data: BytesLike
   ): Result;
@@ -225,6 +234,7 @@ export interface TradingFloorInterface extends utils.Interface {
     "ACDMBought(address,uint256,uint256)": EventFragment;
     "FeeTransfered(address,uint256)": EventFragment;
     "OrderBought(address,address,uint256,uint256)": EventFragment;
+    "OrderCancelled(uint256,uint256,address)": EventFragment;
     "OrderCreated(address,uint256,uint256,uint256)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "Paused(address)": EventFragment;
@@ -238,6 +248,7 @@ export interface TradingFloorInterface extends utils.Interface {
   getEvent(nameOrSignatureOrTopic: "ACDMBought"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "FeeTransfered"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OrderBought"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OrderCancelled"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OrderCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Paused"): EventFragment;
@@ -273,6 +284,13 @@ export type OrderBoughtEvent = TypedEvent<
 >;
 
 export type OrderBoughtEventFilter = TypedEventFilter<OrderBoughtEvent>;
+
+export type OrderCancelledEvent = TypedEvent<
+  [BigNumber, BigNumber, string],
+  { _numOfRound: BigNumber; _id: BigNumber; _owner: string }
+>;
+
+export type OrderCancelledEventFilter = TypedEventFilter<OrderCancelledEvent>;
 
 export type OrderCreatedEvent = TypedEvent<
   [string, BigNumber, BigNumber, BigNumber],
@@ -380,6 +398,11 @@ export interface TradingFloor extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    cancelOrder(
+      _id: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     finishRound(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -466,6 +489,11 @@ export interface TradingFloor extends BaseContract {
     _idOrder: BigNumberish,
     _amountACDM: BigNumberish,
     overrides?: PayableOverrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  cancelOrder(
+    _id: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   finishRound(
@@ -556,6 +584,8 @@ export interface TradingFloor extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
+    cancelOrder(_id: BigNumberish, overrides?: CallOverrides): Promise<void>;
+
     finishRound(overrides?: CallOverrides): Promise<void>;
 
     getBlockTimeStamp(overrides?: CallOverrides): Promise<BigNumber>;
@@ -643,6 +673,17 @@ export interface TradingFloor extends BaseContract {
       _priceForAmountACDM?: null
     ): OrderBoughtEventFilter;
 
+    "OrderCancelled(uint256,uint256,address)"(
+      _numOfRound?: null,
+      _id?: null,
+      _owner?: null
+    ): OrderCancelledEventFilter;
+    OrderCancelled(
+      _numOfRound?: null,
+      _id?: null,
+      _owner?: null
+    ): OrderCancelledEventFilter;
+
     "OrderCreated(address,uint256,uint256,uint256)"(
       _owner?: string | null,
       _amountACDM?: null,
@@ -722,6 +763,11 @@ export interface TradingFloor extends BaseContract {
       _idOrder: BigNumberish,
       _amountACDM: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    cancelOrder(
+      _id: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     finishRound(
@@ -808,6 +854,11 @@ export interface TradingFloor extends BaseContract {
       _idOrder: BigNumberish,
       _amountACDM: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    cancelOrder(
+      _id: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     finishRound(
