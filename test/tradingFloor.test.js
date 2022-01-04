@@ -19,7 +19,7 @@ describe('Token contract', () => {
         token = await Token.connect(owner).deploy();
         await token.deployed();
 
-        tradingFloor = await TradingFloor.deploy(token.address);
+        tradingFloor = await TradingFloor.connect(owner).deploy(token.address);
         await tradingFloor.deployed();
         
         token.connect(owner).setRoleForTradingFloor(tradingFloor.address);
@@ -29,15 +29,15 @@ describe('Token contract', () => {
 
     describe('Deployment', () => {
         it('Should set admin role for trading floor', async () => {
-            expect(await token.hasRole(adminRole,tradingFloor.address)).to.equal(true);
+            expect(await token.hasRole(adminRole, tradingFloor.address)).to.equal(true);
         });
 
         it('Should set minter role for trading floor', async () => {
-            expect(await token.hasRole(minterRole,tradingFloor.address)).to.equal(true);
+            expect(await token.hasRole(minterRole, tradingFloor.address)).to.equal(true);
         });
 
         it('Should set burner role for trading floor', async () => {
-            expect(await token.hasRole(burnerRole,tradingFloor.address)).to.equal(true);
+            expect(await token.hasRole(burnerRole, tradingFloor.address)).to.equal(true);
         });
 
         it('Should set right trading floor address', async () => {

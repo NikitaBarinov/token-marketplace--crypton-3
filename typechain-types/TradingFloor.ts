@@ -77,7 +77,6 @@ export interface TradingFloorInterface extends utils.Interface {
     "paused()": FunctionFragment;
     "registration(address)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "totalSupplyACDM()": FunctionFragment;
     "tradingFloorInit()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "unpause()": FunctionFragment;
@@ -142,10 +141,6 @@ export interface TradingFloorInterface extends utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "totalSupplyACDM",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "tradingFloorInit",
     values?: undefined
   ): string;
@@ -196,10 +191,6 @@ export interface TradingFloorInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "totalSupplyACDM",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -428,8 +419,6 @@ export interface TradingFloor extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    totalSupplyACDM(overrides?: CallOverrides): Promise<[BigNumber]>;
-
     tradingFloorInit(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -519,8 +508,6 @@ export interface TradingFloor extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
-
   tradingFloorInit(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -597,8 +584,6 @@ export interface TradingFloor extends BaseContract {
     registration(_refer: string, overrides?: CallOverrides): Promise<boolean>;
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
-
-    totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
 
     tradingFloorInit(overrides?: CallOverrides): Promise<void>;
 
@@ -786,8 +771,6 @@ export interface TradingFloor extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    totalSupplyACDM(overrides?: CallOverrides): Promise<BigNumber>;
-
     tradingFloorInit(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -882,8 +865,6 @@ export interface TradingFloor extends BaseContract {
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    totalSupplyACDM(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     tradingFloorInit(
       overrides?: Overrides & { from?: string | Promise<string> }
